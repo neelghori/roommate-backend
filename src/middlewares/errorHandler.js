@@ -1,0 +1,54 @@
+const mongoose = require('mongoose');
+const ApiError = require('../utils/ApiError');
+const env = require('../config/env');
+
+const GENERIC_500 = 'Something went wrong. Please try again later.';
+const GENERIC_400_BODY = 'Invalid request body.';
+
+function errorHandler(err, req, res, _next) {
+  let statusCode = 500;
+  let message = GENERIC_500;
+
+  if (err instanceof ApiError) {
+    statusCode = err.statusCode || 500;
+    if (err.isOperational && statusCode !== 500) {
+      message = err.message;
+    } else {
+      message = GENERIC_500;
+    }
+  } else if (err instanceof mongoose.Error.ValidationError) {
+    statusCode = 400;
+    message = 'Invalid input. Please check your data and try again.';
+  } else if (err instanceof mongoose.Error.CastError) {
+    statusCode = 400;
+    message = 'Invalid identifier or data format.';
+  } else if (err.code === 11000) {
+    statusCode = 409;
+    message = 'This record already exists or conflicts with existing data.';
+  } else if (err instanceof SyntaxError) {
+    statusCode = 400;
+    message = GENERIC_400_BODY;
+  } else if (err.type === 'entity.parse.failed') {
+    statusCode = 400;
+    message = GENERIC_400_BODY;
+  }
+
+  if (statusCode === 500) {
+    message = GENERIC_500;
+  }
+
+  if (statusCode >= 500) {
+    /* eslint-disable no-console */
+    console.error('[API]', req.method, req.originalUrl, err);
+  } else if (env.NODE_ENV === 'development') {
+    /* eslint-disable no-console */
+    console.error('[API]', req.method, req.originalUrl, err);
+  }
+
+  res.status(statusCode).json({
+    status: 'error',
+    message,
+  });
+}
+
+module.exports = errorHandler;
