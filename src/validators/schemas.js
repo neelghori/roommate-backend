@@ -124,6 +124,28 @@ exports.changePassword = Joi.object({
     }),
 }).unknown(false);
 
+/** One resident card on a property listing (API `listerSnapshots[]` or legacy `listerSnapshot`). */
+const listerResidentBody = Joi.object({
+  fullName: Joi.string().trim().max(120),
+  age: Joi.number().min(16).max(120),
+  profileImageUrl: Joi.string().uri().max(2048).allow('', null),
+  phone: Joi.string().trim(),
+  gender: Joi.string().valid('male', 'female', 'other'),
+  professionalType: Joi.string().valid(...PROFESSIONAL_TYPES),
+  collegeOrCompanyName: Joi.string().trim().max(200),
+  propertyOrPgName: Joi.string().trim().max(200),
+  monthlyRent: Joi.number().min(0),
+  securityDeposit: Joi.number().min(0),
+  moveInDate: Joi.date(),
+  moveOutDate: Joi.date(),
+  roomPhotoUrls: Joi.array().items(Joi.string().uri().max(2048)).max(20),
+  description: Joi.string().max(5000).allow('', null),
+  lifestyle: Joi.object({
+    diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
+    smoking: Joi.string().valid('non_smoker', 'smoker'),
+  }).optional(),
+});
+
 exports.register = Joi.object({
   fullName: Joi.string().trim().max(120).required(),
   mobile: Joi.string().trim().pattern(/^[0-9+\s()-]{10,15}$/).required(),
@@ -140,11 +162,16 @@ exports.register = Joi.object({
 });
 
 exports.createProperty = Joi.object({
-  title: Joi.string().trim().max(200).required(),
+  title: Joi.string().trim().min(3).max(200).required().messages({
+    'string.min': 'Title must be at least 3 characters long.',
+    'string.empty': 'Title is required.',
+  }),
   rentRange: Joi.object({
-    min: Joi.number().min(0),
+    min: Joi.number().min(0).required(),
     max: Joi.number().min(0),
-  }).optional(),
+  })
+    .required()
+    .messages({ 'any.required': 'Rent information is required.' }),
   currency: Joi.string().uppercase().length(3).optional(),
   listingType: Joi.string()
     .valid(...LISTING_TYPES)
@@ -159,12 +186,12 @@ exports.createProperty = Joi.object({
     formattedAddress: Joi.string().trim().max(500),
   }).optional(),
   address: Joi.object({
-    line1: Joi.string().trim().max(200),
-    line2: Joi.string().trim().max(200),
-    city: Joi.string().trim().max(100),
-    state: Joi.string().trim().max(100),
-    postalCode: Joi.string().trim().max(20),
-    country: Joi.string().trim().max(100),
+    line1: Joi.string().trim().min(3).max(200),
+    line2: Joi.string().trim().max(200).allow('', null),
+    city: Joi.string().trim().min(2).max(100),
+    state: Joi.string().trim().min(2).max(100),
+    postalCode: Joi.string().trim().max(20).allow('', null),
+    country: Joi.string().trim().min(2).max(100),
   }).optional(),
   genderPreference: Joi.string().valid(...GENDER_OPTIONS),
   description: Joi.string().max(10000).allow('', null),
@@ -177,31 +204,34 @@ exports.createProperty = Joi.object({
   contactPhone: Joi.string().trim().max(20),
   verificationBadge: Joi.string().valid('none', 'id_verified', 'property_verified', 'premium'),
   amenityIds: Joi.array().items(Joi.string().hex().length(24)).max(50),
-  listerSnapshot: Joi.object({
-    fullName: Joi.string().trim().max(120),
-    age: Joi.number().min(16).max(120),
-    profileImageUrl: Joi.string().uri().max(2048).allow('', null),
-    phone: Joi.string().trim(),
-    gender: Joi.string().valid('male', 'female', 'other'),
-    professionalType: Joi.string().valid(...PROFESSIONAL_TYPES),
-    collegeOrCompanyName: Joi.string().trim().max(200),
-    propertyOrPgName: Joi.string().trim().max(200),
-    monthlyRent: Joi.number().min(0),
-    securityDeposit: Joi.number().min(0),
-    moveInDate: Joi.date(),
-    moveOutDate: Joi.date(),
-    roomPhotoUrls: Joi.array().items(Joi.string().uri().max(2048)).max(20),
-    description: Joi.string().max(5000).allow('', null),
-    lifestyle: Joi.object({
-      diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
-      smoking: Joi.string().valid('non_smoker', 'smoker'),
-    }).optional(),
-  }).optional(),
+  availableSpots: Joi.number().integer().min(1).max(50),
+  listerSnapshot: listerResidentBody.optional(),
+  listerSnapshots: Joi.array().items(listerResidentBody).max(20),
   isPublished: Joi.boolean(),
 });
 
+exports.moderateProperty = Joi.object({
+  action: Joi.string().valid('approve', 'reject', 'under_review').required(),
+  reason: Joi.when('action', {
+    is: 'reject',
+    then: Joi.string()
+      .trim()
+      .min(3)
+      .max(2000)
+      .required()
+      .messages({
+        'string.empty': 'Please provide a rejection reason.',
+        'string.min': 'Rejection reason must be at least 3 characters.',
+        'any.required': 'Rejection reason is required when rejecting a listing.',
+      }),
+    otherwise: Joi.string().trim().max(2000).allow('', null),
+  }),
+}).unknown(false);
+
 exports.updateProperty = Joi.object({
-  title: Joi.string().trim().max(200),
+  title: Joi.string().trim().min(3).max(200).messages({
+    'string.min': 'Title must be at least 3 characters long.',
+  }),
   rentRange: Joi.object({
     min: Joi.number().min(0),
     max: Joi.number().min(0),
@@ -218,12 +248,12 @@ exports.updateProperty = Joi.object({
     formattedAddress: Joi.string().trim().max(500),
   }),
   address: Joi.object({
-    line1: Joi.string().trim().max(200),
-    line2: Joi.string().trim().max(200),
-    city: Joi.string().trim().max(100),
-    state: Joi.string().trim().max(100),
-    postalCode: Joi.string().trim().max(20),
-    country: Joi.string().trim().max(100),
+    line1: Joi.string().trim().min(3).max(200),
+    line2: Joi.string().trim().max(200).allow('', null),
+    city: Joi.string().trim().min(2).max(100),
+    state: Joi.string().trim().min(2).max(100),
+    postalCode: Joi.string().trim().max(20).allow('', null),
+    country: Joi.string().trim().min(2).max(100),
   }),
   genderPreference: Joi.string().valid(...GENDER_OPTIONS),
   description: Joi.string().max(10000).allow('', null),
@@ -236,26 +266,9 @@ exports.updateProperty = Joi.object({
   contactPhone: Joi.string().trim().max(20),
   verificationBadge: Joi.string().valid('none', 'id_verified', 'property_verified', 'premium'),
   amenityIds: Joi.array().items(Joi.string().hex().length(24)).max(50),
-  listerSnapshot: Joi.object({
-    fullName: Joi.string().trim().max(120),
-    age: Joi.number().min(16).max(120),
-    profileImageUrl: Joi.string().uri().max(2048).allow('', null),
-    phone: Joi.string().trim(),
-    gender: Joi.string().valid('male', 'female', 'other'),
-    professionalType: Joi.string().valid(...PROFESSIONAL_TYPES),
-    collegeOrCompanyName: Joi.string().trim().max(200),
-    propertyOrPgName: Joi.string().trim().max(200),
-    monthlyRent: Joi.number().min(0),
-    securityDeposit: Joi.number().min(0),
-    moveInDate: Joi.date(),
-    moveOutDate: Joi.date(),
-    roomPhotoUrls: Joi.array().items(Joi.string().uri().max(2048)).max(20),
-    description: Joi.string().max(5000).allow('', null),
-    lifestyle: Joi.object({
-      diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
-      smoking: Joi.string().valid('non_smoker', 'smoker'),
-    }),
-  }),
+  availableSpots: Joi.number().integer().min(1).max(50),
+  listerSnapshot: listerResidentBody,
+  listerSnapshots: Joi.array().items(listerResidentBody).max(20),
   isPublished: Joi.boolean(),
 })
   .min(1)
@@ -327,6 +340,18 @@ exports.paramId = Joi.object({
   id: Joi.string().hex().length(24).required(),
 });
 
+/** `GET|PATCH|DELETE .../properties/:id/lister-residents/:residentId` */
+exports.paramPropertyResident = Joi.object({
+  id: Joi.string().hex().length(24).required(),
+  residentId: Joi.string().hex().length(24).required(),
+});
+
+/** POST one resident — same field rules as embedded lister row. */
+exports.listerResidentPostBody = listerResidentBody;
+
+/** PATCH one resident — partial update (at least one field recommended; enforced in controller if needed). */
+exports.patchListerResidentBody = listerResidentBody;
+
 exports.paramPropertyId = Joi.object({
   propertyId: Joi.string().hex().length(24).required(),
 });
@@ -346,3 +371,34 @@ exports.patchSupport = Joi.object({
 })
   .min(1)
   .messages({ 'object.min': 'Provide at least one field' });
+
+const TENANT_ROOMMATE_LIFESTYLE_TAGS = [
+  'Non-Smoker',
+  'Vegetarian',
+  'Non-Veg',
+  'Early Bird',
+  'Night Owl',
+  'Pet Friendly',
+  'Working',
+  'Student',
+];
+
+exports.tenantRoommateProfileListQuery = Joi.object({
+  search: Joi.string().trim().max(200).allow(''),
+  tags: Joi.string().trim().max(500).allow(''),
+}).unknown(false);
+
+exports.tenantRoommateProfileUpsert = Joi.object({
+  displayName: Joi.string().trim().min(2).max(120).required(),
+  occupation: Joi.string().trim().min(2).max(120).required(),
+  location: Joi.string().trim().min(3).max(200).required(),
+  monthlyBudget: Joi.number().integer().min(1000).max(500000).required(),
+  moveInDate: Joi.date().required(),
+  bio: Joi.string().trim().min(20).max(2000).required(),
+  lifestyleTags: Joi.array()
+    .items(Joi.string().valid(...TENANT_ROOMMATE_LIFESTYLE_TAGS))
+    .min(1)
+    .max(10)
+    .required(),
+  displayRole: Joi.string().valid('Student', 'Working', 'Veg Only').required(),
+}).unknown(false);

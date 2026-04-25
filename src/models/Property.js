@@ -27,7 +27,8 @@ const listerContextSchema = new mongoose.Schema(
     description: { type: String, maxlength: 5000 },
     lifestyle: lifestyleSnippetSchema,
   },
-  { _id: false },
+  /** Each resident row has its own `_id` for PATCH/DELETE by id. */
+  { _id: true },
 );
 
 const addressSchema = new mongoose.Schema(
@@ -87,9 +88,20 @@ const propertySchema = new mongoose.Schema(
     contactPhone: { type: String, trim: true },
     verificationBadge: { type: String, enum: ['none', 'id_verified', 'property_verified', 'premium'], default: 'none' },
     amenityIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Amenity' }],
+    /** @deprecated Prefer `listerSnapshots`; kept for older documents. */
     listerSnapshot: listerContextSchema,
+    /** Multiple current residents / roommates for this listing (max 20). */
+    listerSnapshots: { type: [listerContextSchema], default: undefined },
     savedCount: { type: Number, default: 0, min: 0 },
     isPublished: { type: Boolean, default: true },
+    /** Staff moderation — new listings start `pending` until approved */
+    moderationStatus: {
+      type: String,
+      enum: ['pending', 'under_review', 'approved', 'rejected'],
+    },
+    rejectionReason: { type: String, trim: true, maxlength: 2000 },
+    /** Vacancies / beds (shown on listing cards) */
+    availableSpots: { type: Number, min: 1, max: 50 },
   },
   { timestamps: true },
 );

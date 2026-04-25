@@ -1,14 +1,73 @@
+const mongoose = require('mongoose');
 const Property = require('../models/Property');
 const SavedProperty = require('../models/SavedProperty');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+
+/** Move single `listerSnapshot` into `listerSnapshots[]` so new APIs apply. */
+function migrateLegacyListerSnapshot(doc) {
+  if (doc.listerSnapshots?.length) return false;
+  if (!doc.listerSnapshot) return false;
+  const leg = doc.listerSnapshot.toObject ? doc.listerSnapshot.toObject() : { ...doc.listerSnapshot };
+  const keys = Object.keys(leg).filter((k) => leg[k] != null && leg[k] !== '');
+  if (!keys.length) return false;
+  doc.listerSnapshots = [];
+  doc.listerSnapshots.push(leg);
+  doc.set('listerSnapshot', undefined);
+  return true;
+}
+
+/** Legacy rows may lack subdoc `_id`; assign so PATCH/DELETE can target them. */
+function ensureListerSnapshotSubdocIds(doc) {
+  const arr = doc.listerSnapshots;
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  let changed = false;
+  for (const el of arr) {
+    if (el && !el._id) {
+      el._id = new mongoose.Types.ObjectId();
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function bumpModerationIfNeeded(doc) {
+  if (doc.isModified() && doc.moderationStatus === 'approved' && doc.isPublished) {
+    doc.moderationStatus = 'pending';
+    doc.isPublished = false;
+    doc.rejectionReason = undefined;
+  }
+}
+
+async function respondWithPopulatedProperty(docId) {
+  const populated = await Property.findById(docId)
+    .populate('owner', 'fullName profileImageUrl role professionalType email mobile')
+    .populate('amenityIds');
+  return populated;
+}
+
+/** Live on home / explore — staff-approved and published */
+function isPublicListed(doc) {
+  if (!doc || !doc.isPublished) return false;
+  if (doc.moderationStatus === 'pending' || doc.moderationStatus === 'under_review' || doc.moderationStatus === 'rejected') {
+    return false;
+  }
+  return !doc.moderationStatus || doc.moderationStatus === 'approved';
+}
+
+function publicListingFilter() {
+  return {
+    isPublished: true,
+    $or: [{ moderationStatus: 'approved' }, { moderationStatus: { $exists: false } }],
+  };
+}
 
 exports.list = catchAsync(async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
   const skip = (page - 1) * limit;
 
-  const filter = { isPublished: true };
+  const filter = publicListingFilter();
   if (req.query.listingType) filter.listingType = req.query.listingType;
   if (req.query.city) filter['address.city'] = new RegExp(req.query.city, 'i');
   if (req.query.minRent != null) filter['rentRange.min'] = { $gte: Number(req.query.minRent) };
@@ -45,18 +104,45 @@ exports.list = catchAsync(async (req, res) => {
 });
 
 exports.getOne = catchAsync(async (req, res) => {
-  const doc = await Property.findById(req.params.id).populate('owner', 'fullName profileImageUrl role professionalType').populate('amenityIds');
+  let doc = await Property.findById(req.params.id)
+    .populate('owner', 'fullName profileImageUrl role professionalType email mobile')
+    .populate('amenityIds');
   if (!doc) throw new ApiError(404, 'Listing not found');
+
+  const uid = req.user?._id?.toString();
+  const ownerId = doc.owner?._id?.toString?.() ?? doc.owner?.toString?.();
+  const isOwner = Boolean(uid && ownerId && uid === ownerId);
+
+  if (!isPublicListed(doc)) {
+    if (!isOwner) throw new ApiError(404, 'Listing not found');
+  }
+
+  /** One-time shape fix: legacy `listerSnapshot` → `listerSnapshots` + subdoc `_id`s (owner only). */
+  if (isOwner) {
+    const didMigrate = migrateLegacyListerSnapshot(doc);
+    const didEnsure = ensureListerSnapshotSubdocIds(doc);
+    if (didMigrate || didEnsure) {
+      doc.markModified('listerSnapshots');
+      doc.set('listerSnapshot', undefined);
+      await doc.save({ validateBeforeSave: true });
+      doc = await Property.findById(doc._id)
+        .populate('owner', 'fullName profileImageUrl role professionalType email mobile')
+        .populate('amenityIds');
+    }
+  }
+
   res.json({ status: 'ok', data: { property: doc } });
 });
 
 exports.create = catchAsync(async (req, res) => {
   const b = req.body;
+  const min = b.rentRange?.min;
+  const max = b.rentRange?.max != null ? b.rentRange.max : min;
   const doc = await Property.create({
     owner: req.user._id,
     title: b.title,
-    rentRange: b.rentRange,
-    currency: b.currency,
+    rentRange: { min, max },
+    currency: b.currency || 'INR',
     listingType: b.listingType,
     coverImageUrl: b.coverImageUrl,
     imageUrls: b.imageUrls,
@@ -68,13 +154,21 @@ exports.create = catchAsync(async (req, res) => {
     websiteUrl: b.websiteUrl,
     socialLinks: b.socialLinks,
     contactPhone: b.contactPhone,
-    verificationBadge: b.verificationBadge,
-    amenityIds: b.amenityIds,
+    verificationBadge: b.verificationBadge || 'none',
+    amenityIds: b.amenityIds || [],
     listerSnapshot: b.listerSnapshot,
-    isPublished: b.isPublished,
+    listerSnapshots: b.listerSnapshots,
+    availableSpots: b.availableSpots,
+    isPublished: false,
+    moderationStatus: 'pending',
+    rejectionReason: undefined,
   });
 
-  res.status(201).json({ status: 'ok', data: { property: doc } });
+  res.status(201).json({
+    status: 'ok',
+    message: 'Your listing was submitted and is pending admin approval.',
+    data: { property: doc },
+  });
 });
 
 exports.update = catchAsync(async (req, res) => {
@@ -82,10 +176,118 @@ exports.update = catchAsync(async (req, res) => {
   if (!doc) throw new ApiError(404, 'Listing not found');
   if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
 
-  Object.assign(doc, req.body);
+  const body = { ...req.body };
+  delete body.isPublished;
+  delete body.moderationStatus;
+  delete body.rejectionReason;
+  delete body.owner;
+  delete body.savedCount;
+
+  Object.assign(doc, body);
+  if (Array.isArray(req.body.listerSnapshots)) {
+    doc.set('listerSnapshot', undefined);
+  }
+  if (doc.isModified() && doc.moderationStatus === 'approved' && doc.isPublished) {
+    doc.moderationStatus = 'pending';
+    doc.isPublished = false;
+    doc.rejectionReason = undefined;
+  }
   await doc.save();
 
   res.json({ status: 'ok', data: { property: doc } });
+});
+
+/** POST — append one resident (does not re-send existing rows). */
+exports.addListerResident = catchAsync(async (req, res) => {
+  const doc = await Property.findById(req.params.id);
+  if (!doc) throw new ApiError(404, 'Listing not found');
+  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+
+  if (migrateLegacyListerSnapshot(doc)) doc.markModified('listerSnapshots');
+
+  const bodyKeys = Object.keys(req.body || {}).filter((k) => req.body[k] !== undefined && req.body[k] !== null);
+  if (bodyKeys.length === 0) throw new ApiError(400, 'Provide at least one field for the new resident.');
+
+  if (!Array.isArray(doc.listerSnapshots)) doc.listerSnapshots = [];
+  if (ensureListerSnapshotSubdocIds(doc)) doc.markModified('listerSnapshots');
+
+  if (doc.listerSnapshots.length >= 20) throw new ApiError(400, 'Maximum 20 residents per listing.');
+
+  const row = { ...req.body };
+  delete row._id;
+  row.roomPhotoUrls = [];
+  row.propertyOrPgName = String(doc.title || '').trim().slice(0, 200);
+
+  doc.listerSnapshots.push(row);
+  doc.set('listerSnapshot', undefined);
+
+  bumpModerationIfNeeded(doc);
+  await doc.save();
+
+  const populated = await respondWithPopulatedProperty(doc._id);
+  res.json({ status: 'ok', data: { property: populated } });
+});
+
+/** PATCH — update one resident by subdocument id. */
+exports.updateListerResident = catchAsync(async (req, res) => {
+  const doc = await Property.findById(req.params.id);
+  if (!doc) throw new ApiError(404, 'Listing not found');
+  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+
+  if (migrateLegacyListerSnapshot(doc)) doc.markModified('listerSnapshots');
+
+  const patchKeys = Object.keys(req.body || {}).filter((k) => req.body[k] !== undefined);
+  if (patchKeys.length === 0) throw new ApiError(400, 'Provide at least one field to update.');
+
+  if (ensureListerSnapshotSubdocIds(doc)) doc.markModified('listerSnapshots');
+
+  const rid = req.params.residentId;
+  const arr = doc.listerSnapshots || [];
+  const idx = arr.findIndex((s) => s && s._id && String(s._id) === rid);
+  if (idx === -1) throw new ApiError(404, 'Resident not found');
+  const sub = arr[idx];
+
+  for (const [k, v] of Object.entries(req.body)) {
+    if (k === '_id' || v === undefined) continue;
+    sub.set(k, v);
+  }
+  sub.set('roomPhotoUrls', []);
+  sub.set('propertyOrPgName', String(doc.title || '').trim().slice(0, 200));
+
+  doc.set('listerSnapshot', undefined);
+  doc.markModified('listerSnapshots');
+
+  bumpModerationIfNeeded(doc);
+  await doc.save();
+
+  const populated = await respondWithPopulatedProperty(doc._id);
+  res.json({ status: 'ok', data: { property: populated } });
+});
+
+/** DELETE — remove one resident by subdocument id. */
+exports.deleteListerResident = catchAsync(async (req, res) => {
+  const doc = await Property.findById(req.params.id);
+  if (!doc) throw new ApiError(404, 'Listing not found');
+  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+
+  if (migrateLegacyListerSnapshot(doc)) doc.markModified('listerSnapshots');
+
+  if (ensureListerSnapshotSubdocIds(doc)) doc.markModified('listerSnapshots');
+
+  const rid = req.params.residentId;
+  const lenBefore = doc.listerSnapshots?.length || 0;
+  doc.listerSnapshots = (doc.listerSnapshots || []).filter((s) => s && s._id && String(s._id) !== rid);
+  if (doc.listerSnapshots.length === lenBefore) throw new ApiError(404, 'Resident not found');
+
+  doc.markModified('listerSnapshots');
+  if (!doc.listerSnapshots?.length) doc.set('listerSnapshots', undefined);
+  doc.set('listerSnapshot', undefined);
+
+  bumpModerationIfNeeded(doc);
+  await doc.save();
+
+  const populated = await respondWithPopulatedProperty(doc._id);
+  res.json({ status: 'ok', data: { property: populated } });
 });
 
 exports.remove = catchAsync(async (req, res) => {
@@ -101,6 +303,7 @@ exports.remove = catchAsync(async (req, res) => {
 exports.saveListing = catchAsync(async (req, res) => {
   const property = await Property.findById(req.params.id);
   if (!property) throw new ApiError(404, 'Listing not found');
+  if (!isPublicListed(property)) throw new ApiError(400, 'This listing is not available to save.');
 
   const existing = await SavedProperty.findOne({ user: req.user._id, property: property._id });
   if (existing) {
@@ -127,6 +330,6 @@ exports.mySaved = catchAsync(async (req, res) => {
 });
 
 exports.myListings = catchAsync(async (req, res) => {
-  const items = await Property.find({ owner: req.user._id }).sort({ createdAt: -1 });
+  const items = await Property.find({ owner: req.user._id }).sort({ createdAt: -1 }).lean();
   res.json({ status: 'ok', data: { items } });
 });
