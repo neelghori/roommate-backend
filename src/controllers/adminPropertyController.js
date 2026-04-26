@@ -1,6 +1,10 @@
 const Property = require('../models/Property');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const {
+  notifyOwnerListingApproved,
+  notifyOwnerListingRejected,
+} = require('../services/propertyNotifications');
 
 const TYPE_DISPLAY = {
   pg: 'PG',
@@ -87,6 +91,14 @@ exports.moderate = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
 
+  const ownerShouldReceiveApprovalNotice =
+    action === 'approve' &&
+    !(doc.moderationStatus === 'approved' && doc.isPublished === true);
+
+  const prevModeration = doc.moderationStatus;
+  const ownerShouldReceiveRejectionNotice =
+    action === 'reject' && prevModeration !== 'rejected';
+
   if (action === 'approve') {
     doc.isPublished = true;
     doc.moderationStatus = 'approved';
@@ -102,6 +114,21 @@ exports.moderate = catchAsync(async (req, res) => {
   }
 
   await doc.save();
+
+  if (ownerShouldReceiveApprovalNotice) {
+    notifyOwnerListingApproved(doc).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[adminPropertyController.moderate] notifyOwnerListingApproved:', err?.message || err);
+    });
+  }
+
+  if (ownerShouldReceiveRejectionNotice) {
+    notifyOwnerListingRejected(doc).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[adminPropertyController.moderate] notifyOwnerListingRejected:', err?.message || err);
+    });
+  }
+
   const lean = await Property.findById(doc._id).populate('owner', 'fullName email').lean();
   res.json({ status: 'ok', data: { listing: mapToAdminRow(lean) } });
 });

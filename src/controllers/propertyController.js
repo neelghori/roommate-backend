@@ -3,6 +3,7 @@ const Property = require('../models/Property');
 const SavedProperty = require('../models/SavedProperty');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { notifyStaffNewPropertyListing } = require('../services/propertyNotifications');
 
 /** Move single `listerSnapshot` into `listerSnapshots[]` so new APIs apply. */
 function migrateLegacyListerSnapshot(doc) {
@@ -72,7 +73,14 @@ exports.list = catchAsync(async (req, res) => {
   if (req.query.city) filter['address.city'] = new RegExp(req.query.city, 'i');
   if (req.query.minRent != null) filter['rentRange.min'] = { $gte: Number(req.query.minRent) };
 
-  let query = Property.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).populate('owner', 'fullName profileImageUrl role');
+  let query = Property.find(filter)
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit)
+    .populate('owner', 'fullName profileImageUrl role')
+    .populate('amenityIds', 'name slug');
+
+  let countFilter = filter;
 
   if (req.query.lng != null && req.query.lat != null) {
     const lng = Number(req.query.lng);
@@ -80,7 +88,7 @@ exports.list = catchAsync(async (req, res) => {
     const maxKm = Math.min(100, Number(req.query.radiusKm) || 10);
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) throw new ApiError(400, 'Invalid geo query');
 
-    query = Property.find({
+    const geoFilter = {
       ...filter,
       location: {
         $near: {
@@ -88,18 +96,31 @@ exports.list = catchAsync(async (req, res) => {
           $maxDistance: maxKm * 1000,
         },
       },
-    })
-      .sort({ createdAt: -1 })
+    };
+    countFilter = geoFilter;
+
+    query = Property.find(geoFilter)
       .skip(skip)
       .limit(limit)
-      .populate('owner', 'fullName profileImageUrl role');
+      .populate('owner', 'fullName profileImageUrl role')
+      .populate('amenityIds', 'name slug');
   }
 
-  const [items, total] = await Promise.all([query.lean(), Property.countDocuments(filter)]);
+  const [items, total] = await Promise.all([query.lean(), Property.countDocuments(countFilter)]);
+
+  let savedIds = new Set();
+  if (req.user?._id) {
+    const rows = await SavedProperty.find({ user: req.user._id }).select('property').lean();
+    savedIds = new Set(rows.map((r) => String(r.property)));
+  }
+  const itemsOut = items.map((p) => ({
+    ...p,
+    isSaved: savedIds.has(String(p._id)),
+  }));
 
   res.json({
     status: 'ok',
-    data: { items, page, limit, total },
+    data: { items: itemsOut, page, limit, total },
   });
 });
 
@@ -131,7 +152,14 @@ exports.getOne = catchAsync(async (req, res) => {
     }
   }
 
-  res.json({ status: 'ok', data: { property: doc } });
+  let isSaved = false;
+  if (req.user?._id) {
+    isSaved = Boolean(await SavedProperty.exists({ user: req.user._id, property: doc._id }));
+  }
+  const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  plain.isSaved = isSaved;
+
+  res.json({ status: 'ok', data: { property: plain } });
 });
 
 exports.create = catchAsync(async (req, res) => {
@@ -164,10 +192,16 @@ exports.create = catchAsync(async (req, res) => {
     rejectionReason: undefined,
   });
 
+  notifyStaffNewPropertyListing(doc).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('[propertyController.create] notifyStaffNewPropertyListing:', err?.message || err);
+  });
+
+  const populatedCreate = await respondWithPopulatedProperty(doc._id);
   res.status(201).json({
     status: 'ok',
     message: 'Your listing was submitted and is pending admin approval.',
-    data: { property: doc },
+    data: { property: populatedCreate },
   });
 });
 
@@ -194,7 +228,8 @@ exports.update = catchAsync(async (req, res) => {
   }
   await doc.save();
 
-  res.json({ status: 'ok', data: { property: doc } });
+  const populatedUpdate = await respondWithPopulatedProperty(doc._id);
+  res.json({ status: 'ok', data: { property: populatedUpdate } });
 });
 
 /** POST — append one resident (does not re-send existing rows). */
@@ -325,11 +360,22 @@ exports.unsaveListing = catchAsync(async (req, res) => {
 });
 
 exports.mySaved = catchAsync(async (req, res) => {
-  const saved = await SavedProperty.find({ user: req.user._id }).populate('property').sort({ updatedAt: -1 });
+  const saved = await SavedProperty.find({ user: req.user._id })
+    .populate({
+      path: 'property',
+      populate: [
+        { path: 'owner', select: 'fullName profileImageUrl role' },
+        { path: 'amenityIds', select: 'name slug' },
+      ],
+    })
+    .sort({ updatedAt: -1 });
   res.json({ status: 'ok', data: { items: saved } });
 });
 
 exports.myListings = catchAsync(async (req, res) => {
-  const items = await Property.find({ owner: req.user._id }).sort({ createdAt: -1 }).lean();
+  const items = await Property.find({ owner: req.user._id })
+    .sort({ createdAt: -1 })
+    .populate('amenityIds', 'name slug')
+    .lean();
   res.json({ status: 'ok', data: { items } });
 });

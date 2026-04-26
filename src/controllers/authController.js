@@ -54,7 +54,20 @@ exports.login = catchAsync(async (req, res) => {
 });
 
 exports.me = catchAsync(async (req, res) => {
-  res.json({ status: 'ok', data: { user: req.user.toSafeObject() } });
+  const Property = require('../models/Property');
+  const SavedProperty = require('../models/SavedProperty');
+  const Booking = require('../models/Booking');
+  const uid = req.user._id;
+  const [listingCount, shortlistedCount, bookingCount] = await Promise.all([
+    Property.countDocuments({ owner: uid }),
+    SavedProperty.countDocuments({ user: uid }),
+    Booking.countDocuments({ requester: uid }),
+  ]);
+  const o = req.user.toSafeObject();
+  o.listingCount = listingCount;
+  o.shortlistedCount = shortlistedCount;
+  o.bookingCount = bookingCount;
+  res.json({ status: 'ok', data: { user: o } });
 });
 
 exports.updateProfile = catchAsync(async (req, res) => {

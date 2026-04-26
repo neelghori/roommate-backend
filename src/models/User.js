@@ -32,7 +32,13 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: [USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.SUPERADMIN, USER_ROLES.SUB_ADMIN],
+      enum: [
+        USER_ROLES.TENANT,
+        USER_ROLES.OWNER,
+        USER_ROLES.ROOMMATE,
+        USER_ROLES.SUPERADMIN,
+        USER_ROLES.SUB_ADMIN,
+      ],
       required: true,
     },
     password: { type: String, required: true, minlength: 8, select: false },
@@ -47,6 +53,44 @@ const userSchema = new mongoose.Schema(
     age: { type: Number, min: 16, max: 120 },
     gender: { type: String, enum: GENDER_OPTIONS.filter((g) => g !== 'any') },
     profileImageUrl: { type: String, trim: true, maxlength: 2048 },
+    /** In-app profile / roommate search preferences (PATCH /auth/me). */
+    bio: { type: String, trim: true, maxlength: 2000 },
+    location: { type: String, trim: true, maxlength: 200 },
+    monthlyBudget: { type: Number, min: 0, max: 500000 },
+    moveInDate: { type: Date },
+    roommateGenderPreference: { type: String, enum: ['any', 'male', 'female'] },
+    lifestyleTags: {
+      type: [String],
+      default: undefined,
+      validate: {
+        validator(arr) {
+          if (!arr || !arr.length) return true;
+          const allowed = new Set([
+            'STUDENT',
+            'WORKING',
+            'VEGETARIAN',
+            'NON_VEG',
+            'SMOKER',
+            'NON_SMOKER',
+            'PET_FRIENDLY',
+            'NIGHT_OWL',
+            'EARLY_BIRD',
+          ]);
+          return arr.length <= 20 && arr.every((t) => allowed.has(t));
+        },
+        message: 'Invalid lifestyle tag',
+      },
+    },
+    identityVerificationStatus: {
+      type: String,
+      enum: ['none', 'pending', 'verified', 'rejected'],
+      default: 'none',
+    },
+    identityDocumentUrl: { type: String, trim: true, maxlength: 2048 },
+    identitySubmittedAt: { type: Date },
+    identityReviewedAt: { type: Date },
+    identityReviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    identityRejectionReason: { type: String, trim: true, maxlength: 500 },
     isActive: { type: Boolean, default: true },
     isStaff: { type: Boolean, default: false },
     lastLoginAt: { type: Date },
@@ -79,6 +123,7 @@ userSchema.methods.toSafeObject = function toSafeObject() {
   delete o.password;
   delete o.passwordResetTokenHash;
   delete o.passwordResetExpires;
+  o.isAadharVerified = o.identityVerificationStatus === 'verified';
   return o;
 };
 

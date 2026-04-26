@@ -8,11 +8,61 @@ const {
 
 const objectId = Joi.string().hex().length(24).required();
 
+/**
+ * Stored image references: absolute https URL (S3, CDN) or root-relative path (e.g. /images/...).
+ * Protocol-relative URLs (//...) are rejected as open-redirect vectors.
+ */
+const imageUrlOptional = Joi.string()
+  .trim()
+  .max(2048)
+  .allow('', null)
+  .custom((value, helpers) => {
+    if (value === '' || value == null) return value;
+    if (value.startsWith('/') && !value.startsWith('//')) return value;
+    const { error } = Joi.string().uri({ scheme: ['http', 'https'] }).validate(value);
+    if (error) return helpers.error('any.invalid');
+    return value;
+  })
+  .messages({
+    'any.invalid': '{{#label}} must be a valid http(s) URL or a root-relative path starting with /',
+  });
+
+const imageUrlArrayItem = Joi.string()
+  .trim()
+  .min(1)
+  .max(2048)
+  .custom((value, helpers) => {
+    if (value.startsWith('/') && !value.startsWith('//')) return value;
+    const { error } = Joi.string().uri({ scheme: ['http', 'https'] }).validate(value);
+    if (error) return helpers.error('any.invalid');
+    return value;
+  })
+  .messages({
+    'any.invalid': '{{#label}} must be a valid http(s) URL or a root-relative path starting with /',
+  });
+
 const lifestyle = Joi.object({
   diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
   smoking: Joi.string().valid('non_smoker', 'smoker'),
   maritalStatus: Joi.string().valid('single', 'married', 'prefer_not_to_say'),
 });
+
+/** App profile edit — lifestyle chips (matches website `profile.schema`). */
+const PROFILE_LIFESTYLE_TAGS = [
+  'STUDENT',
+  'WORKING',
+  'VEGETARIAN',
+  'NON_VEG',
+  'SMOKER',
+  'NON_SMOKER',
+  'PET_FRIENDLY',
+  'NIGHT_OWL',
+  'EARLY_BIRD',
+];
+
+const lifestyleTagsPayload = Joi.object({
+  tags: Joi.array().items(Joi.string().valid(...PROFILE_LIFESTYLE_TAGS)).max(20),
+}).unknown(false);
 
 /** Login email: relaxed TLD list so valid real-world addresses are not rejected before auth runs */
 const loginEmail = Joi.string()
@@ -74,6 +124,7 @@ exports.adminUserListQuery = Joi.object({
   role: Joi.string().valid(
     USER_ROLES.TENANT,
     USER_ROLES.OWNER,
+    USER_ROLES.ROOMMATE,
     USER_ROLES.SUPERADMIN,
     USER_ROLES.SUB_ADMIN,
   ),
@@ -93,14 +144,38 @@ exports.createAdminUser = Joi.object({
   }),
 }).unknown(false);
 
+exports.paramAdminUserId = Joi.object({
+  id: Joi.string().hex().length(24).required().messages({
+    'string.hex': 'Invalid user id.',
+    'string.length': 'Invalid user id.',
+  }),
+});
+
+exports.adminUserIdentityReview = Joi.object({
+  action: Joi.string().valid('verify', 'reject').required(),
+  reason: Joi.string().trim().max(500).allow('', null),
+}).unknown(false);
+
+exports.adminUserPatch = Joi.object({
+  isActive: Joi.boolean(),
+})
+  .min(1)
+  .unknown(false)
+  .messages({ 'object.min': 'Provide at least one field to update.' });
+
 exports.updateProfile = Joi.object({
   fullName: Joi.string().trim().max(120),
   mobile: Joi.string().trim().pattern(/^[0-9+\s()-]{10,15}$/),
   professionalType: Joi.string().valid(...PROFESSIONAL_TYPES),
-  lifestyle: lifestyle.optional(),
+  lifestyle: Joi.alternatives().try(lifestyle, lifestyleTagsPayload),
   age: Joi.number().integer().min(16).max(120),
   gender: Joi.string().valid('male', 'female', 'other'),
-  profileImageUrl: Joi.string().uri().max(2048).allow('', null),
+  profileImageUrl: imageUrlOptional,
+  bio: Joi.string().trim().max(2000).allow('', null),
+  location: Joi.string().trim().max(200).allow('', null),
+  monthlyBudget: Joi.number().integer().min(0).max(500000),
+  moveInDate: Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/).allow('', null),
+  roommateGenderPreference: Joi.string().valid('any', 'male', 'female'),
 })
   .min(1)
   .unknown(false)
@@ -128,7 +203,7 @@ exports.changePassword = Joi.object({
 const listerResidentBody = Joi.object({
   fullName: Joi.string().trim().max(120),
   age: Joi.number().min(16).max(120),
-  profileImageUrl: Joi.string().uri().max(2048).allow('', null),
+  profileImageUrl: imageUrlOptional,
   phone: Joi.string().trim(),
   gender: Joi.string().valid('male', 'female', 'other'),
   professionalType: Joi.string().valid(...PROFESSIONAL_TYPES),
@@ -138,7 +213,7 @@ const listerResidentBody = Joi.object({
   securityDeposit: Joi.number().min(0),
   moveInDate: Joi.date(),
   moveOutDate: Joi.date(),
-  roomPhotoUrls: Joi.array().items(Joi.string().uri().max(2048)).max(20),
+  roomPhotoUrls: Joi.array().items(imageUrlArrayItem).max(20),
   description: Joi.string().max(5000).allow('', null),
   lifestyle: Joi.object({
     diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
@@ -150,7 +225,7 @@ exports.register = Joi.object({
   fullName: Joi.string().trim().max(120).required(),
   mobile: Joi.string().trim().pattern(/^[0-9+\s()-]{10,15}$/).required(),
   email: Joi.string().trim().email().max(254).required(),
-  role: Joi.string().valid(USER_ROLES.TENANT, USER_ROLES.OWNER).required(),
+  role: Joi.string().valid(USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE).required(),
   password: Joi.string().min(8).max(128).required(),
   professionalType: Joi.string()
     .valid(...PROFESSIONAL_TYPES)
@@ -158,7 +233,7 @@ exports.register = Joi.object({
   lifestyle: lifestyle.optional(),
   age: Joi.number().integer().min(16).max(120),
   gender: Joi.string().valid('male', 'female', 'other'),
-  profileImageUrl: Joi.string().uri().max(2048).allow('', null),
+  profileImageUrl: imageUrlOptional,
 });
 
 exports.createProperty = Joi.object({
@@ -176,8 +251,8 @@ exports.createProperty = Joi.object({
   listingType: Joi.string()
     .valid(...LISTING_TYPES)
     .required(),
-  coverImageUrl: Joi.string().uri().max(2048).allow('', null),
-  imageUrls: Joi.array().items(Joi.string().uri().max(2048)).max(30),
+  coverImageUrl: imageUrlOptional,
+  imageUrls: Joi.array().items(imageUrlArrayItem).max(30),
   offerText: Joi.string().trim().max(500).allow('', null),
   location: Joi.object({
     type: Joi.string().valid('Point'),
@@ -238,8 +313,8 @@ exports.updateProperty = Joi.object({
   }),
   currency: Joi.string().uppercase().length(3),
   listingType: Joi.string().valid(...LISTING_TYPES),
-  coverImageUrl: Joi.string().uri().max(2048).allow('', null),
-  imageUrls: Joi.array().items(Joi.string().uri().max(2048)).max(30),
+  coverImageUrl: imageUrlOptional,
+  imageUrls: Joi.array().items(imageUrlArrayItem).max(30),
   offerText: Joi.string().trim().max(500).allow('', null),
   location: Joi.object({
     type: Joi.string().valid('Point'),
@@ -383,9 +458,20 @@ const TENANT_ROOMMATE_LIFESTYLE_TAGS = [
   'Student',
 ];
 
+/** Mongo seeker profile `_id`, or synthetic `user-<userId>` when listing from main `User` only. */
+exports.tenantRoommateProfileParamId = Joi.object({
+  id: Joi.alternatives()
+    .try(Joi.string().hex().length(24), Joi.string().pattern(/^user-[a-fA-F0-9]{24}$/i))
+    .required(),
+});
+
 exports.tenantRoommateProfileListQuery = Joi.object({
   search: Joi.string().trim().max(200).allow(''),
   tags: Joi.string().trim().max(500).allow(''),
+  /** `all` = profile must include every tag; `any` = profile includes at least one (better for personalized home feed). */
+  tagsMatch: Joi.string().valid('all', 'any'),
+  /** When set, only profiles whose monthlyBudget falls in a band around this value (seeker budget). */
+  budget: Joi.number().integer().min(0).max(500000),
 }).unknown(false);
 
 exports.tenantRoommateProfileUpsert = Joi.object({

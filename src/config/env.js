@@ -13,6 +13,13 @@ const schema = Joi.object({
   EMAIL_FROM: Joi.string().trim().allow('').default(''),
   ADMIN_PASSWORD_RESET_BASE_URL: Joi.string().trim().allow('').default(''),
   PASSWORD_RESET_EXPIRES_MINUTES: Joi.number().integer().min(5).max(1440).default(60),
+  /** S3 image uploads — bucket + region required when using /api/v1/upload/* */
+  AWS_REGION: Joi.string().trim().allow('').default(''),
+  AWS_S3_BUCKET: Joi.string().trim().allow('').default(''),
+  AWS_ACCESS_KEY_ID: Joi.string().trim().allow('').default(''),
+  AWS_SECRET_ACCESS_KEY: Joi.string().trim().allow('').default(''),
+  /** Optional CDN or path-style origin, e.g. https://d111111abcdef8.cloudfront.net (no trailing slash) */
+  AWS_S3_PUBLIC_BASE_URL: Joi.string().trim().allow('').max(500).default(''),
 }).unknown(true);
 
 const { value, error } = schema.validate(process.env, { abortEarly: false });

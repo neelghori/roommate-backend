@@ -8,16 +8,16 @@ const { strictLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
-router.get('/', propertyController.list);
+router.get('/', optionalAuth, propertyController.list);
 router.get('/saved/mine', protect, propertyController.mySaved);
-router.get('/mine/listings', protect, restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT), propertyController.myListings);
+router.get('/mine/listings', protect, restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE), propertyController.myListings);
 router.get('/:id', optionalAuth, validateParams(schemas.paramId), propertyController.getOne);
 
 router.post(
   '/',
   protect,
   strictLimiter,
-  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT),
+  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateBody(schemas.createProperty),
   propertyController.create,
 );
@@ -26,7 +26,7 @@ router.post(
   '/:id/lister-residents',
   protect,
   strictLimiter,
-  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT),
+  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramId),
   validateBody(schemas.listerResidentPostBody),
   propertyController.addListerResident,
@@ -36,7 +36,7 @@ router.patch(
   '/:id/lister-residents/:residentId',
   protect,
   strictLimiter,
-  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT),
+  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyResident),
   validateBody(schemas.patchListerResidentBody),
   propertyController.updateListerResident,
@@ -46,7 +46,7 @@ router.delete(
   '/:id/lister-residents/:residentId',
   protect,
   strictLimiter,
-  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT),
+  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyResident),
   propertyController.deleteListerResident,
 );
