@@ -7,6 +7,7 @@ router.use('/admin/auth', require('./adminAuthRoutes'));
 router.use('/admin/users', require('./adminUserRoutes'));
 router.use('/admin/properties', require('./adminPropertyRoutes'));
 router.use('/admin/bookings', require('./adminBookingRoutes'));
+router.use('/admin/dashboard', require('./adminDashboardRoutes'));
 router.use('/properties', require('./propertyRoutes'));
 router.use('/upload', require('./uploadRoutes'));
 router.use('/bookings', require('./bookingRoutes'));
