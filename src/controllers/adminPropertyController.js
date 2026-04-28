@@ -9,8 +9,9 @@ const {
 const TYPE_DISPLAY = {
   pg: 'PG',
   flat: 'Flat',
-  room: 'Rent',
+  room: 'Room',
   roommate_seeker: 'Roommate',
+  coworking_space: 'Co-Working Space',
 };
 
 function mapToAdminRow(p) {

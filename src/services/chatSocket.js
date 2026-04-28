@@ -1,11 +1,15 @@
 /**
- * Realtime chat — WebSocket hub on HTTP server path `/ws`.
+ * Realtime hub on HTTP server path `/ws`.
  * Clients connect with: ws://host:port/ws?token=<JWT>
- * On new messages, both sender and receiver sockets receive { type: 'message:new', payload: <ChatMessage lean> }.
+ * JWT may be app user (`aud: app`) or admin dashboard (`aud: admin`) — same `sub` user id.
+ *
+ * Events:
+ * - Chat: { type: 'message:new', payload: <ChatMessage lean> } to sender + receiver.
+ * - In-app notifications: { type: 'notification:new', payload: <Notification plain> } to the recipient user.
  */
 const { WebSocketServer } = require('ws');
 const User = require('../models/User');
-const { verifyToken } = require('../utils/jwt');
+const { verifyToken, verifyAdminToken } = require('../utils/jwt');
 
 /** @type {import('ws').WebSocketServer | null} */
 let wss = null;
@@ -45,6 +49,33 @@ function broadcastToUser(userId, obj) {
   }
 }
 
+/** Plain shape for clients (matches REST list items). */
+function notificationToWire(doc) {
+  const o = doc && typeof doc.toObject === 'function' ? doc.toObject() : doc;
+  if (!o || !o._id) return null;
+  return {
+    _id: String(o._id),
+    title: o.title,
+    description: o.description,
+    type: o.type,
+    payload: o.payload,
+    isRead: Boolean(o.isRead),
+    createdAt: o.createdAt instanceof Date ? o.createdAt.toISOString() : o.createdAt,
+    updatedAt: o.updatedAt instanceof Date ? o.updatedAt.toISOString() : o.updatedAt,
+  };
+}
+
+/**
+ * Push a newly persisted in-app notification to every open tab for that user (admin or app JWT).
+ * @param {import('mongoose').Types.ObjectId|string} userId
+ * @param {object} notificationDoc - Mongoose doc or plain
+ */
+function broadcastNotificationNew(userId, notificationDoc) {
+  const payload = notificationToWire(notificationDoc);
+  if (!payload) return;
+  broadcastToUser(String(userId), { type: 'notification:new', payload });
+}
+
 /**
  * Push a newly persisted message to every tab of sender + receiver.
  * @param {object} messageLean - Mongoose doc or plain object with sender, receiver, message, _id, createdAt, readAt
@@ -79,10 +110,14 @@ function initChatSocket(httpServer) {
 
         let decoded;
         try {
-          decoded = verifyToken(token);
+          decoded = verifyAdminToken(token);
         } catch {
-          ws.close(4002, 'invalid token');
-          return;
+          try {
+            decoded = verifyToken(token);
+          } catch {
+            ws.close(4002, 'invalid token');
+            return;
+          }
         }
 
         const user = await User.findById(decoded.sub).select('_id isActive').lean();
@@ -127,4 +162,4 @@ function initChatSocket(httpServer) {
   });
 }
 
-module.exports = { initChatSocket, broadcastNewMessage };
+module.exports = { initChatSocket, broadcastNewMessage, broadcastNotificationNew };

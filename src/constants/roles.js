@@ -24,7 +24,7 @@ const PROFESSIONAL_TYPES = [
   'other',
 ];
 
-const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker'];
+const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker', 'coworking_space'];
 
 const GENDER_OPTIONS = ['male', 'female', 'other', 'any'];
 

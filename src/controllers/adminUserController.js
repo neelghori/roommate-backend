@@ -41,7 +41,9 @@ exports.list = catchAsync(async (req, res) => {
   const skip = (page - 1) * limit;
   const [items, total] = await Promise.all([
     User.find(filter)
-      .select('-password -passwordResetTokenHash -passwordResetExpires')
+      .select(
+        '-password -passwordResetTokenHash -passwordResetExpires -emailVerificationTokenHash -emailVerificationExpires',
+      )
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -75,6 +77,8 @@ exports.create = catchAsync(async (req, res) => {
     email: normalizedEmail,
     password,
     role: USER_ROLES.SUB_ADMIN,
+    emailVerified: true,
+    mobileVerifiedByAdmin: true,
   });
 
   res.status(201).json({
@@ -91,7 +95,9 @@ function assertCanAccessUserDoc(requester, target) {
 
 exports.getById = catchAsync(async (req, res) => {
   const user = await User.findById(req.params.id)
-    .select('-password -passwordResetTokenHash -passwordResetExpires')
+    .select(
+      '-password -passwordResetTokenHash -passwordResetExpires -emailVerificationTokenHash -emailVerificationExpires',
+    )
     .lean();
   if (!user) throw new ApiError(404, 'User not found');
   assertCanAccessUserDoc(req.user, user);
@@ -125,7 +131,7 @@ exports.reviewIdentity = catchAsync(async (req, res) => {
 });
 
 exports.patchUser = catchAsync(async (req, res) => {
-  const { isActive } = req.body;
+  const { isActive, emailVerified, mobileVerifiedByAdmin } = req.body;
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
   assertCanAccessUserDoc(req.user, user);
@@ -135,6 +141,18 @@ exports.patchUser = catchAsync(async (req, res) => {
       throw new ApiError(400, 'You cannot deactivate your own account.');
     }
     user.isActive = isActive;
+  }
+
+  if (typeof emailVerified === 'boolean') {
+    user.emailVerified = emailVerified;
+    if (emailVerified) {
+      user.emailVerificationTokenHash = undefined;
+      user.emailVerificationExpires = undefined;
+    }
+  }
+
+  if (typeof mobileVerifiedByAdmin === 'boolean') {
+    user.mobileVerifiedByAdmin = mobileVerifiedByAdmin;
   }
 
   await user.save({ validateBeforeSave: false });

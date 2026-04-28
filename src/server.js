@@ -13,7 +13,7 @@ async function start() {
     server.listen(env.PORT, () => {
       /* eslint-disable no-console */
       console.log(`RoomMate API listening on port ${env.PORT} (${env.NODE_ENV})`);
-      console.log(`WebSocket chat: ws://localhost:${env.PORT}/ws?token=<JWT>`);
+      console.log(`WebSocket (chat + notifications): ws://localhost:${env.PORT}/ws?token=<app-or-admin-JWT>`);
     });
   } catch (err) {
     /* eslint-disable no-console */

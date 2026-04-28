@@ -20,6 +20,25 @@ function clearableStringField(key) {
   return ['profileImageUrl', 'bio', 'location'].includes(key);
 }
 
+/** Parse `YYYY-MM-DD` to a UTC Date at noon (stable calendar day). */
+function parseYmdUtcNoon(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd).trim());
+  if (!m) return null;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+  const dt = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null;
+  return dt;
+}
+
+function computeAgeYearsFromDobUtc(dobUtc, now = new Date()) {
+  let age = now.getUTCFullYear() - dobUtc.getUTCFullYear();
+  const md = now.getUTCMonth() - dobUtc.getUTCMonth();
+  if (md < 0 || (md === 0 && now.getUTCDate() < dobUtc.getUTCDate())) age -= 1;
+  return age;
+}
+
 async function updateProfileById(userId, body) {
   const user = await User.findById(userId);
   if (!user) throw new ApiError(404, 'User not found.');
@@ -50,6 +69,26 @@ async function updateProfileById(userId, body) {
       user.set(key, undefined);
     } else {
       user.set(key, body[key]);
+    }
+  }
+
+  if (body.dateOfBirth !== undefined) {
+    if (body.dateOfBirth === '' || body.dateOfBirth === null) {
+      user.set('dateOfBirth', undefined);
+      user.set('age', undefined);
+    } else {
+      const dob = parseYmdUtcNoon(body.dateOfBirth);
+      if (!dob) throw new ApiError(400, 'Invalid date of birth.');
+      const now = new Date();
+      if (dob.getTime() > now.getTime()) {
+        throw new ApiError(400, 'Date of birth cannot be in the future.');
+      }
+      const age = computeAgeYearsFromDobUtc(dob, now);
+      if (age < 16 || age > 120) {
+        throw new ApiError(400, 'Age from date of birth must be between 16 and 120.');
+      }
+      user.set('dateOfBirth', dob);
+      user.set('age', age);
     }
   }
 

@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { USER_ROLES } = require('../constants/roles');
+const { broadcastNotificationNew } = require('./chatSocket');
 
 /**
  * In-app notifications for listing lifecycle (best-effort; errors are logged).
@@ -42,7 +43,7 @@ async function notifyStaffNewPropertyListing(property) {
     title,
   };
 
-  await Promise.all(
+  const docs = await Promise.all(
     staff.map((row) =>
       Notification.create({
         user: row._id,
@@ -53,6 +54,9 @@ async function notifyStaffNewPropertyListing(property) {
       }),
     ),
   );
+  for (const doc of docs) {
+    broadcastNotificationNew(doc.user, doc);
+  }
 }
 
 async function notifyOwnerListingApproved(property) {
@@ -64,7 +68,7 @@ async function notifyOwnerListingApproved(property) {
   }
 
   const title = String(property.title || 'Your listing').slice(0, 120);
-  await Notification.create({
+  const doc = await Notification.create({
     user: ownerId,
     title: 'Your listing is live',
     description: `"${title}" has been approved and is now listed for seekers to discover.`,
@@ -75,6 +79,7 @@ async function notifyOwnerListingApproved(property) {
       title,
     },
   });
+  broadcastNotificationNew(ownerId, doc);
 }
 
 async function notifyOwnerListingRejected(property) {
@@ -87,7 +92,7 @@ async function notifyOwnerListingRejected(property) {
 
   const title = String(property.title || 'Your listing').slice(0, 120);
   const reason = String(property.rejectionReason || 'Rejected by moderator.').trim().slice(0, 800);
-  await Notification.create({
+  const doc = await Notification.create({
     user: ownerId,
     title: 'Your listing was not approved',
     description: `"${title}" was reviewed and not published. Reason: ${reason}`,
@@ -99,6 +104,7 @@ async function notifyOwnerListingRejected(property) {
       rejectionReason: reason,
     },
   });
+  broadcastNotificationNew(ownerId, doc);
 }
 
 module.exports = {

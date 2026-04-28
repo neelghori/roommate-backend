@@ -3,7 +3,21 @@ const Property = require('../models/Property');
 const SavedProperty = require('../models/SavedProperty');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { USER_ROLES } = require('../constants/roles');
 const { notifyStaffNewPropertyListing } = require('../services/propertyNotifications');
+
+/** `roommate_seeker` listings align with app role `roommate`; other roles use PG/flat/etc. */
+function assertListingTypeAllowedForUser(user, listingType) {
+  if (!listingType) return;
+  const isRoommateSeeker = listingType === 'roommate_seeker';
+  const role = user.role;
+  if (isRoommateSeeker && role !== USER_ROLES.ROOMMATE) {
+    throw new ApiError(403, 'Only roommate-seeker accounts can create this listing type.');
+  }
+  if (!isRoommateSeeker && role === USER_ROLES.ROOMMATE) {
+    throw new ApiError(403, 'Roommate seekers can only create roommate-seeker listings.');
+  }
+}
 
 /** Move single `listerSnapshot` into `listerSnapshots[]` so new APIs apply. */
 function migrateLegacyListerSnapshot(doc) {
@@ -63,6 +77,41 @@ function publicListingFilter() {
   };
 }
 
+/** WGS84 mean Earth radius in meters (Mongo `$centerSphere` uses radians). */
+const EARTH_RADIUS_METERS = 6378100;
+
+/**
+ * Parse `lat` / `lng` / `radiusKm` from query. Returns null if geo should be skipped.
+ * Uses `$geoWithin` + `$centerSphere` (not `$near`) so `find` + `countDocuments` work on current MongoDB.
+ */
+function parseListGeoQuery(req) {
+  if (req.query.lng == null || req.query.lat == null) return null;
+  const lng = Number(req.query.lng);
+  const lat = Number(req.query.lat);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+    throw new ApiError(400, 'Invalid geo query: latitude and longitude must be valid numbers.');
+  }
+  if (lat < -90 || lat > 90) {
+    throw new ApiError(400, 'Invalid latitude: must be between -90 and 90.');
+  }
+  if (lng < -180 || lng > 180) {
+    throw new ApiError(400, 'Invalid longitude: must be between -180 and 180.');
+  }
+  const radiusKm = Number(req.query.radiusKm);
+  const maxKm = Math.min(100, Math.max(0.5, Number.isFinite(radiusKm) && radiusKm > 0 ? radiusKm : 10));
+  const radiusMeters = maxKm * 1000;
+  const radiusRadians = radiusMeters / EARTH_RADIUS_METERS;
+  return { lng, lat, radiusRadians };
+}
+
+function geoWithinLocationFilter(lng, lat, radiusRadians) {
+  return {
+    $geoWithin: {
+      $centerSphere: [[lng, lat], radiusRadians],
+    },
+  };
+}
+
 exports.list = catchAsync(async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -82,24 +131,17 @@ exports.list = catchAsync(async (req, res) => {
 
   let countFilter = filter;
 
-  if (req.query.lng != null && req.query.lat != null) {
-    const lng = Number(req.query.lng);
-    const lat = Number(req.query.lat);
-    const maxKm = Math.min(100, Number(req.query.radiusKm) || 10);
-    if (!Number.isFinite(lng) || !Number.isFinite(lat)) throw new ApiError(400, 'Invalid geo query');
-
+  const geo = parseListGeoQuery(req);
+  if (geo) {
+    const { lng, lat, radiusRadians } = geo;
     const geoFilter = {
       ...filter,
-      location: {
-        $near: {
-          $geometry: { type: 'Point', coordinates: [lng, lat] },
-          $maxDistance: maxKm * 1000,
-        },
-      },
+      location: geoWithinLocationFilter(lng, lat, radiusRadians),
     };
     countFilter = geoFilter;
 
     query = Property.find(geoFilter)
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .populate('owner', 'fullName profileImageUrl role')
@@ -164,6 +206,7 @@ exports.getOne = catchAsync(async (req, res) => {
 
 exports.create = catchAsync(async (req, res) => {
   const b = req.body;
+  assertListingTypeAllowedForUser(req.user, b.listingType);
   const min = b.rentRange?.min;
   const max = b.rentRange?.max != null ? b.rentRange.max : min;
   const doc = await Property.create({
@@ -216,6 +259,9 @@ exports.update = catchAsync(async (req, res) => {
   delete body.rejectionReason;
   delete body.owner;
   delete body.savedCount;
+
+  const effectiveListingType = body.listingType !== undefined ? body.listingType : doc.listingType;
+  assertListingTypeAllowedForUser(req.user, effectiveListingType);
 
   Object.assign(doc, body);
   if (Array.isArray(req.body.listerSnapshots)) {

@@ -41,11 +41,12 @@ const imageUrlArrayItem = Joi.string()
     'any.invalid': '{{#label}} must be a valid http(s) URL or a root-relative path starting with /',
   });
 
+/** Diet/smoking object — `unknown(false)` so `{ tags: [...] }` is not misread as this shape. */
 const lifestyle = Joi.object({
   diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
   smoking: Joi.string().valid('non_smoker', 'smoker'),
   maritalStatus: Joi.string().valid('single', 'married', 'prefer_not_to_say'),
-});
+}).unknown(false);
 
 /** App profile edit — lifestyle chips (matches website `profile.schema`). */
 const PROFILE_LIFESTYLE_TAGS = [
@@ -87,6 +88,17 @@ const loginPassword = Joi.string()
     'any.required': 'Password is required.',
   });
 
+exports.verifyEmail = Joi.object({
+  token: Joi.string().trim().hex().length(64).required().messages({
+    'string.empty': 'Verification token is required.',
+    'any.required': 'Verification token is required.',
+  }),
+}).unknown(false);
+
+exports.resendVerificationEmail = Joi.object({
+  email: loginEmail,
+}).unknown(false);
+
 exports.login = Joi.object({
   password: loginPassword,
   email: loginEmail,
@@ -102,6 +114,27 @@ exports.adminForgotPassword = Joi.object({
 });
 
 exports.adminResetPassword = Joi.object({
+  token: Joi.string()
+    .hex()
+    .length(64)
+    .required()
+    .messages({
+      'string.length': 'The reset link is invalid or has expired.',
+      'string.hex': 'The reset link is invalid or has expired.',
+      'any.required': 'Reset token is required.',
+    }),
+  newPassword: Joi.string().min(8).max(128).required().messages({
+    'string.min': 'New password must be at least 8 characters long.',
+    'string.max': 'New password is too long.',
+    'any.required': 'New password is required.',
+  }),
+});
+
+exports.userForgotPassword = Joi.object({
+  email: loginEmail,
+});
+
+exports.userResetPassword = Joi.object({
   token: Joi.string()
     .hex()
     .length(64)
@@ -158,6 +191,8 @@ exports.adminUserIdentityReview = Joi.object({
 
 exports.adminUserPatch = Joi.object({
   isActive: Joi.boolean(),
+  emailVerified: Joi.boolean(),
+  mobileVerifiedByAdmin: Joi.boolean(),
 })
   .min(1)
   .unknown(false)
@@ -167,8 +202,11 @@ exports.updateProfile = Joi.object({
   fullName: Joi.string().trim().max(120),
   mobile: Joi.string().trim().pattern(/^[0-9+\s()-]{10,15}$/),
   professionalType: Joi.string().valid(...PROFESSIONAL_TYPES),
-  lifestyle: Joi.alternatives().try(lifestyle, lifestyleTagsPayload),
+  /** Chips payload must be tried before `lifestyle` or Joi strips `tags` and saves `{}`. */
+  lifestyle: Joi.alternatives().try(lifestyleTagsPayload, lifestyle),
   age: Joi.number().integer().min(16).max(120),
+  /** YYYY-MM-DD; service checks calendar validity, future dates, and age 16–120. */
+  dateOfBirth: Joi.string().trim().pattern(/^\d{4}-\d{2}-\d{2}$/).allow('', null),
   gender: Joi.string().valid('male', 'female', 'other'),
   profileImageUrl: imageUrlOptional,
   bio: Joi.string().trim().max(2000).allow('', null),
@@ -198,6 +236,27 @@ exports.changePassword = Joi.object({
       'any.invalid': 'New password must be different from your current password.',
     }),
 }).unknown(false);
+
+/** GeoJSON Point for listings: coordinates[0] = longitude, coordinates[1] = latitude */
+const propertyLocationPoint = Joi.object({
+  type: Joi.string().valid('Point').required(),
+  coordinates: Joi.array()
+    .ordered(
+      Joi.number().min(-180).max(180).required().messages({
+        'number.min': 'Longitude must be between -180 and 180',
+        'number.max': 'Longitude must be between -180 and 180',
+      }),
+      Joi.number().min(-90).max(90).required().messages({
+        'number.min': 'Latitude must be between -90 and 90',
+        'number.max': 'Latitude must be between -90 and 90',
+      }),
+    )
+    .length(2)
+    .required()
+    .messages({ 'array.length': 'coordinates must be [longitude, latitude]' }),
+  placeId: Joi.string().trim().allow('', null),
+  formattedAddress: Joi.string().trim().max(500).allow('', null),
+});
 
 /** One resident card on a property listing (API `listerSnapshots[]` or legacy `listerSnapshot`). */
 const listerResidentBody = Joi.object({
@@ -254,12 +313,9 @@ exports.createProperty = Joi.object({
   coverImageUrl: imageUrlOptional,
   imageUrls: Joi.array().items(imageUrlArrayItem).max(30),
   offerText: Joi.string().trim().max(500).allow('', null),
-  location: Joi.object({
-    type: Joi.string().valid('Point'),
-    coordinates: Joi.array().items(Joi.number()).length(2).required(),
-    placeId: Joi.string().trim(),
-    formattedAddress: Joi.string().trim().max(500),
-  }).optional(),
+  location: propertyLocationPoint.required().messages({
+    'any.required': 'Map location (latitude and longitude) is required.',
+  }),
   address: Joi.object({
     line1: Joi.string().trim().min(3).max(200),
     line2: Joi.string().trim().max(200).allow('', null),
@@ -316,12 +372,7 @@ exports.updateProperty = Joi.object({
   coverImageUrl: imageUrlOptional,
   imageUrls: Joi.array().items(imageUrlArrayItem).max(30),
   offerText: Joi.string().trim().max(500).allow('', null),
-  location: Joi.object({
-    type: Joi.string().valid('Point'),
-    coordinates: Joi.array().items(Joi.number()).length(2).required(),
-    placeId: Joi.string().trim(),
-    formattedAddress: Joi.string().trim().max(500),
-  }),
+  location: propertyLocationPoint,
   address: Joi.object({
     line1: Joi.string().trim().min(3).max(200),
     line2: Joi.string().trim().max(200).allow('', null),

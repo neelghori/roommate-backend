@@ -30,6 +30,10 @@ async function run() {
     user.role = USER_ROLES.SUPERADMIN;
     user.password = password;
     user.isActive = true;
+    user.emailVerified = true;
+    user.mobileVerifiedByAdmin = true;
+    user.emailVerificationTokenHash = undefined;
+    user.emailVerificationExpires = undefined;
     await user.save();
     await User.updateOne({ _id: user._id }, { $unset: { mobile: '', professionalType: '' } });
     console.log(`Updated superadmin: ${email}`);
@@ -39,6 +43,8 @@ async function run() {
       email,
       role: USER_ROLES.SUPERADMIN,
       password,
+      emailVerified: true,
+      mobileVerifiedByAdmin: true,
     });
     console.log(`Created superadmin: ${email}`);
   }

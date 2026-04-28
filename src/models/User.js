@@ -50,7 +50,10 @@ const userSchema = new mongoose.Schema(
       },
     },
     lifestyle: lifestyleSchema,
+    /** Derived from `dateOfBirth` when DOB is set via profile; may still be set alone at register. */
     age: { type: Number, min: 16, max: 120 },
+    /** Calendar date of birth (UTC midnight for YYYY-MM-DD); PATCH /auth/me `dateOfBirth` updates `age`. */
+    dateOfBirth: { type: Date },
     gender: { type: String, enum: GENDER_OPTIONS.filter((g) => g !== 'any') },
     profileImageUrl: { type: String, trim: true, maxlength: 2048 },
     /** In-app profile / roommate search preferences (PATCH /auth/me). */
@@ -94,6 +97,12 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isStaff: { type: Boolean, default: false },
     lastLoginAt: { type: Date },
+    /** Confirmed via email link or set manually by super admin. */
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, select: false },
+    emailVerificationExpires: { type: Date, select: false },
+    /** Super admin confirms mobile number out-of-band (manual). */
+    mobileVerifiedByAdmin: { type: Boolean, default: false },
     passwordResetTokenHash: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
   },
@@ -123,7 +132,13 @@ userSchema.methods.toSafeObject = function toSafeObject() {
   delete o.password;
   delete o.passwordResetTokenHash;
   delete o.passwordResetExpires;
+  delete o.emailVerificationTokenHash;
+  delete o.emailVerificationExpires;
   o.isAadharVerified = o.identityVerificationStatus === 'verified';
+  if (typeof o.emailVerified !== 'boolean') o.emailVerified = Boolean(o.emailVerified);
+  if (typeof o.mobileVerifiedByAdmin !== 'boolean') {
+    o.mobileVerifiedByAdmin = Boolean(o.mobileVerifiedByAdmin);
+  }
   return o;
 };
 

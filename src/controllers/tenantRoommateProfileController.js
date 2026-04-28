@@ -89,6 +89,69 @@ function displayRoleFromUser(user) {
   return 'Working';
 }
 
+/** Public responses only expose `age`; derive it from `dateOfBirth` when `age` is unset. */
+function publicAgeFromUserLean(userDoc) {
+  if (typeof userDoc.age === 'number' && Number.isFinite(userDoc.age)) return userDoc.age;
+  const raw = userDoc.dateOfBirth;
+  if (!raw) return undefined;
+  const dob = raw instanceof Date ? raw : new Date(raw);
+  if (Number.isNaN(dob.getTime())) return undefined;
+  const y = dob.getUTCFullYear();
+  const mo = dob.getUTCMonth();
+  const d = dob.getUTCDate();
+  const dobUtc = new Date(Date.UTC(y, mo, d, 12, 0, 0));
+  const now = new Date();
+  let age = now.getUTCFullYear() - dobUtc.getUTCFullYear();
+  const md = now.getUTCMonth() - dobUtc.getUTCMonth();
+  if (md < 0 || (md === 0 && now.getUTCDate() < dobUtc.getUTCDate())) age -= 1;
+  if (age < 16 || age > 120) return undefined;
+  return age;
+}
+
+/**
+ * Public GET `/tenant-roommate-profiles` responses must never include contact or auth fields.
+ * Whitelist-only serialization (defense in depth vs. accidental spreads or stale deployments).
+ */
+const PUBLIC_ROOMMATE_PROFILE_KEYS = [
+  'id',
+  'profileId',
+  'userId',
+  'listingSource',
+  'displayName',
+  'name',
+  'occupation',
+  'professionalType',
+  'location',
+  'monthlyBudget',
+  'budget',
+  'moveInDate',
+  'bio',
+  'lifestyleTags',
+  'tags',
+  'displayRole',
+  'role',
+  'age',
+  'gender',
+  'roommateGenderPreference',
+  'lifestyleSnippet',
+  'avatarUrl',
+  'avatarInitial',
+  'matchPercent',
+  'isConnected',
+  'accountFullName',
+  'accountRole',
+  'createdAt',
+  'updatedAt',
+];
+
+function serializePublicRoommateProfile(p) {
+  const o = {};
+  for (const k of PUBLIC_ROOMMATE_PROFILE_KEYS) {
+    if (p[k] !== undefined) o[k] = p[k];
+  }
+  return o;
+}
+
 /** Public roommate row from `User` where `role === roommate` (no TenantRoommateProfile). */
 function toPublicShapeFromUser(userDoc, { matchPercent = 82 } = {}) {
   const uid = userDoc._id.toString();
@@ -120,7 +183,7 @@ function toPublicShapeFromUser(userDoc, { matchPercent = 82 } = {}) {
     tags,
     displayRole: role,
     role,
-    age: typeof userDoc.age === 'number' && Number.isFinite(userDoc.age) ? userDoc.age : undefined,
+    age: publicAgeFromUserLean(userDoc),
     gender: typeof userDoc.gender === 'string' ? userDoc.gender : undefined,
     roommateGenderPreference:
       typeof userDoc.roommateGenderPreference === 'string' ? userDoc.roommateGenderPreference : undefined,
@@ -140,8 +203,6 @@ function toPublicShapeFromUser(userDoc, { matchPercent = 82 } = {}) {
     isConnected: false,
     accountFullName: typeof userDoc.fullName === 'string' ? userDoc.fullName.trim() : undefined,
     accountRole: userDoc.role != null ? String(userDoc.role) : undefined,
-    email: typeof userDoc.email === 'string' ? userDoc.email.trim() : undefined,
-    mobile: typeof userDoc.mobile === 'string' ? userDoc.mobile.trim() : undefined,
     createdAt: isoMaybe(userDoc.createdAt),
     updatedAt: isoMaybe(userDoc.updatedAt),
   };
@@ -150,7 +211,7 @@ function toPublicShapeFromUser(userDoc, { matchPercent = 82 } = {}) {
 function listItemMatchesFilters(item, { search, tags, tagsMatch, budgetCenter }) {
   if (search) {
     const re = new RegExp(escapeRegex(search), 'i');
-    const blob = [item.name, item.displayName, item.occupation, item.location, item.bio, item.email, item.mobile]
+    const blob = [item.name, item.displayName, item.occupation, item.location, item.bio]
       .filter((x) => x != null && String(x).trim())
       .join('\n');
     if (!re.test(blob)) return false;
@@ -207,7 +268,7 @@ exports.list = catchAsync(async (req, res) => {
 
   const userDocs = await User.find(userFilter)
     .select(
-      'fullName email mobile role profileImageUrl location monthlyBudget moveInDate bio lifestyleTags lifestyle professionalType roommateGenderPreference age gender isActive createdAt updatedAt',
+      'fullName role profileImageUrl location monthlyBudget moveInDate bio lifestyleTags lifestyle professionalType roommateGenderPreference age dateOfBirth gender isActive createdAt updatedAt',
     )
     .sort({ updatedAt: -1 })
     .limit(300)
@@ -217,6 +278,7 @@ exports.list = catchAsync(async (req, res) => {
     .map((u) => toPublicShapeFromUser(u))
     .filter((item) => listItemMatchesFilters(item, filterCtx))
     .map((item) => bumpMatchPercent(item, tags, tagsMatch, budgetCenter))
+    .map((item) => serializePublicRoommateProfile(item))
     .slice(0, 200);
 
   res.json({ status: 'ok', data: { items } });
@@ -228,16 +290,18 @@ exports.getOne = catchAsync(async (req, res) => {
 
   const userDoc = await User.findById(userId)
     .select(
-      'fullName email mobile role profileImageUrl location monthlyBudget moveInDate bio lifestyleTags lifestyle professionalType roommateGenderPreference age gender isActive createdAt updatedAt',
+      'fullName role profileImageUrl location monthlyBudget moveInDate bio lifestyleTags lifestyle professionalType roommateGenderPreference age dateOfBirth gender isActive createdAt updatedAt',
     )
     .lean();
 
   if (!userDoc || userDoc.isActive === false) throw new ApiError(404, 'Profile not found');
   if (userDoc.role !== USER_ROLES.ROOMMATE) throw new ApiError(404, 'Profile not found');
 
+  const profile = serializePublicRoommateProfile(toPublicShapeFromUser(userDoc, { matchPercent: 88 }));
+
   res.json({
     status: 'ok',
-    data: { profile: toPublicShapeFromUser(userDoc, { matchPercent: 88 }) },
+    data: { profile },
   });
 });
 

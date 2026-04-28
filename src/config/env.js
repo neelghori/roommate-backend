@@ -11,8 +11,13 @@ const schema = Joi.object({
   BCRYPT_SALT_ROUNDS: Joi.number().integer().min(10).max(14).default(12),
   RESEND_API_KEY: Joi.string().allow('').default(''),
   EMAIL_FROM: Joi.string().trim().allow('').default(''),
+  /** Optional absolute URL to logo image for transactional emails (https://…). */
+  EMAIL_LOGO_URL: Joi.string().trim().allow('').max(2048).default(''),
+  /** Public website origin for signup email verification links, e.g. https://app.roommat.com */
+  APP_PUBLIC_FRONTEND_URL: Joi.string().trim().allow('').default(''),
   ADMIN_PASSWORD_RESET_BASE_URL: Joi.string().trim().allow('').default(''),
   PASSWORD_RESET_EXPIRES_MINUTES: Joi.number().integer().min(5).max(1440).default(60),
+  EMAIL_VERIFICATION_EXPIRES_HOURS: Joi.number().integer().min(1).max(168).default(48),
   /** S3 image uploads — bucket + region required when using /api/v1/upload/* */
   AWS_REGION: Joi.string().trim().allow('').default(''),
   AWS_S3_BUCKET: Joi.string().trim().allow('').default(''),

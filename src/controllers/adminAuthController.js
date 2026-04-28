@@ -13,6 +13,30 @@ const FORGOT_PASSWORD_RESPONSE = {
   message: 'If an account exists for this email, you will receive reset instructions shortly.',
 };
 
+function trimBaseUrl(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s === '*') return '';
+  return s.replace(/\/$/, '');
+}
+
+/** Resolve frontend reset URL base from explicit env, then app url, then CORS origins. */
+function resolveAdminPasswordResetBaseUrl() {
+  const explicit = trimBaseUrl(env.ADMIN_PASSWORD_RESET_BASE_URL);
+  if (explicit) return explicit;
+
+  const appBase = trimBaseUrl(env.APP_PUBLIC_FRONTEND_URL);
+  if (appBase) return `${appBase}/admin/reset-password`;
+
+  if (env.CORS_ORIGIN && env.CORS_ORIGIN !== '*') {
+    const origins = String(env.CORS_ORIGIN)
+      .split(',')
+      .map((x) => trimBaseUrl(x))
+      .filter(Boolean);
+    if (origins.length > 0) return `${origins[0]}/admin/reset-password`;
+  }
+  return '';
+}
+
 exports.login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
@@ -76,10 +100,8 @@ exports.forgotPassword = catchAsync(async (req, res) => {
   await user.save();
 
   let resetUrl = null;
-  if (env.ADMIN_PASSWORD_RESET_BASE_URL) {
-    const base = env.ADMIN_PASSWORD_RESET_BASE_URL.replace(/\/$/, '');
-    resetUrl = `${base}?token=${encodeURIComponent(plainToken)}`;
-  }
+  const base = resolveAdminPasswordResetBaseUrl();
+  if (base) resetUrl = `${base}?token=${encodeURIComponent(plainToken)}`;
 
   try {
     await sendAdminPasswordResetEmail({
