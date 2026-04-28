@@ -2,7 +2,7 @@ const express = require('express');
 const bookingController = require('../controllers/bookingController');
 const { validateBody, validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
-const { optionalAuth, protect } = require('../middlewares/auth');
+const { protect } = require('../middlewares/auth');
 const { strictLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
@@ -10,10 +10,12 @@ const router = express.Router();
 router.post(
   '/',
   strictLimiter,
-  optionalAuth,
+  protect,
   validateBody(schemas.createBooking),
   bookingController.create,
 );
+
+router.get('/me', protect, bookingController.listMine);
 
 router.get(
   '/property/:propertyId',

@@ -1,14 +1,19 @@
 require('dotenv').config();
+const http = require('http');
 const connectDB = require('./config/db');
 const app = require('./app');
 const env = require('./config/env');
+const { initChatSocket } = require('./services/chatSocket');
 
 async function start() {
   try {
     await connectDB();
-    app.listen(env.PORT, () => {
+    const server = http.createServer(app);
+    initChatSocket(server);
+    server.listen(env.PORT, () => {
       /* eslint-disable no-console */
       console.log(`RoomMate API listening on port ${env.PORT} (${env.NODE_ENV})`);
+      console.log(`WebSocket (chat + notifications): ws://localhost:${env.PORT}/ws?token=<app-or-admin-JWT>`);
     });
   } catch (err) {
     /* eslint-disable no-console */

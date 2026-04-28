@@ -1,6 +1,8 @@
 const USER_ROLES = {
   TENANT: 'tenant',
   OWNER: 'owner',
+  /** Seeking a shared flat / roommate (tenant-like app access) */
+  ROOMMATE: 'roommate',
   SUPERADMIN: 'superadmin',
   SUB_ADMIN: 'sub_admin',
 };
@@ -22,7 +24,7 @@ const PROFESSIONAL_TYPES = [
   'other',
 ];
 
-const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker'];
+const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker', 'coworking_space'];
 
 const GENDER_OPTIONS = ['male', 'female', 'other', 'any'];
 

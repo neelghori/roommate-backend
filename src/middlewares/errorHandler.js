@@ -31,6 +31,14 @@ function errorHandler(err, req, res, _next) {
   } else if (err.type === 'entity.parse.failed') {
     statusCode = 400;
     message = GENERIC_400_BODY;
+  } else if (err.name === 'MulterError') {
+    statusCode = 400;
+    message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'Each file must be 5 MB or smaller.'
+        : err.code === 'LIMIT_FILE_COUNT'
+          ? 'Too many files in this upload.'
+          : err.message || 'Upload failed.';
   }
 
   if (statusCode === 500) {

@@ -41,7 +41,9 @@ exports.list = catchAsync(async (req, res) => {
   const skip = (page - 1) * limit;
   const [items, total] = await Promise.all([
     User.find(filter)
-      .select('-password -passwordResetTokenHash -passwordResetExpires')
+      .select(
+        '-password -passwordResetTokenHash -passwordResetExpires -emailVerificationTokenHash -emailVerificationExpires',
+      )
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -75,10 +77,84 @@ exports.create = catchAsync(async (req, res) => {
     email: normalizedEmail,
     password,
     role: USER_ROLES.SUB_ADMIN,
+    emailVerified: true,
+    mobileVerifiedByAdmin: true,
   });
 
   res.status(201).json({
     status: 'ok',
     data: { admin: user.toSafeObject() },
   });
+});
+
+function assertCanAccessUserDoc(requester, target) {
+  if (requester.role === USER_ROLES.SUB_ADMIN && target.role === USER_ROLES.SUPERADMIN) {
+    throw new ApiError(403, 'You cannot view this user.');
+  }
+}
+
+exports.getById = catchAsync(async (req, res) => {
+  const user = await User.findById(req.params.id)
+    .select(
+      '-password -passwordResetTokenHash -passwordResetExpires -emailVerificationTokenHash -emailVerificationExpires',
+    )
+    .lean();
+  if (!user) throw new ApiError(404, 'User not found');
+  assertCanAccessUserDoc(req.user, user);
+  res.json({ status: 'ok', data: { user } });
+});
+
+exports.reviewIdentity = catchAsync(async (req, res) => {
+  const { action, reason } = req.body;
+  const user = await User.findById(req.params.id);
+  if (!user) throw new ApiError(404, 'User not found');
+  assertCanAccessUserDoc(req.user, user);
+
+  if (user.identityVerificationStatus !== 'pending') {
+    throw new ApiError(400, 'No pending identity verification for this user.');
+  }
+
+  if (action === 'verify') {
+    user.identityVerificationStatus = 'verified';
+    user.identityReviewedAt = new Date();
+    user.identityReviewedBy = req.user._id;
+    user.identityRejectionReason = undefined;
+  } else {
+    user.identityVerificationStatus = 'rejected';
+    user.identityReviewedAt = new Date();
+    user.identityReviewedBy = req.user._id;
+    user.identityRejectionReason = (reason && String(reason).trim()) || 'Document could not be verified.';
+  }
+
+  await user.save({ validateBeforeSave: false });
+  res.json({ status: 'ok', data: { user: user.toSafeObject() } });
+});
+
+exports.patchUser = catchAsync(async (req, res) => {
+  const { isActive, emailVerified, mobileVerifiedByAdmin } = req.body;
+  const user = await User.findById(req.params.id);
+  if (!user) throw new ApiError(404, 'User not found');
+  assertCanAccessUserDoc(req.user, user);
+
+  if (typeof isActive === 'boolean') {
+    if (!isActive && user._id.equals(req.user._id)) {
+      throw new ApiError(400, 'You cannot deactivate your own account.');
+    }
+    user.isActive = isActive;
+  }
+
+  if (typeof emailVerified === 'boolean') {
+    user.emailVerified = emailVerified;
+    if (emailVerified) {
+      user.emailVerificationTokenHash = undefined;
+      user.emailVerificationExpires = undefined;
+    }
+  }
+
+  if (typeof mobileVerifiedByAdmin === 'boolean') {
+    user.mobileVerifiedByAdmin = mobileVerifiedByAdmin;
+  }
+
+  await user.save({ validateBeforeSave: false });
+  res.json({ status: 'ok', data: { user: user.toSafeObject() } });
 });

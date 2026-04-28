@@ -24,7 +24,6 @@ const protect = catchAsync(async (req, res, next) => {
   let token;
   const auth = req.headers.authorization;
   if (auth && auth.startsWith('Bearer ')) token = auth.slice(7);
-
   if (!token) throw new ApiError(401, 'Not authenticated');
 
   let decoded;
@@ -41,8 +40,40 @@ const protect = catchAsync(async (req, res, next) => {
   next();
 });
 
+/** Accept either app JWT or admin JWT — use for staff routes called from mobile app or admin panel */
+const protectAppOrAdmin = catchAsync(async (req, res, next) => {
+  let token;
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) token = auth.slice(7);
+
+  if (!token) throw new ApiError(401, 'Not authenticated');
+
+  let decoded;
+  try {
+    decoded = verifyToken(token);
+  } catch {
+    try {
+      decoded = verifyAdminToken(token);
+    } catch {
+      throw new ApiError(401, 'Invalid or expired token');
+    }
+  }
+
+  const user = await User.findById(decoded.sub);
+  if (!user || !user.isActive) throw new ApiError(401, 'User not found or deactivated');
+
+  req.user = user;
+  next();
+});
+
 const restrictTo = (...roles) => (req, res, next) => {
-  if (!req.user || !roles.includes(req.user.role)) {
+  if (!req.user) {
+    return next(new ApiError(403, 'Not allowed for this role'));
+  }
+  const userRole =
+    req.user.role == null ? '' : String(req.user.role).trim().toLowerCase();
+  const allowed = roles.map((r) => String(r).trim().toLowerCase());
+  if (!allowed.includes(userRole)) {
     return next(new ApiError(403, 'Not allowed for this role'));
   }
   return next();
@@ -91,6 +122,7 @@ const adminProtect = catchAsync(async (req, res, next) => {
 module.exports = {
   optionalAuth,
   protect,
+  protectAppOrAdmin,
   adminProtect,
   restrictTo,
   requireStaff,

@@ -7,19 +7,38 @@ exports.create = catchAsync(async (req, res) => {
   const b = req.body;
   const property = await Property.findById(b.propertyId);
   if (!property) throw new ApiError(404, 'Listing not found');
+  if (property.owner.equals(req.user._id)) {
+    throw new ApiError(400, 'You cannot book a visit to your own listing.');
+  }
+
+  const visitDay = new Date(b.preferredDate);
+  if (Number.isNaN(visitDay.getTime())) throw new ApiError(400, 'Invalid visit date');
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  if (visitDay < startOfToday) throw new ApiError(400, 'Visit date cannot be in the past.');
 
   const booking = await Booking.create({
     property: property._id,
-    requester: req.user ? req.user._id : undefined,
-    preferredDate: b.preferredDate,
-    preferredTimeStart: b.preferredTimeStart,
-    preferredTimeEnd: b.preferredTimeEnd,
+    requester: req.user._id,
+    preferredDate: visitDay,
+    preferredTimeStart: b.preferredTimeStart || undefined,
+    preferredTimeEnd: b.preferredTimeEnd || undefined,
     contactName: b.contactName,
     contactPhone: b.contactPhone,
     notes: b.notes,
   });
 
   res.status(201).json({ status: 'ok', data: { booking } });
+});
+
+/** Current user's visit requests (newest first). */
+exports.listMine = catchAsync(async (req, res) => {
+  const items = await Booking.find({ requester: req.user._id })
+    .populate('property', 'title coverImageUrl imageUrls address location listingType')
+    .sort({ preferredDate: -1, createdAt: -1 })
+    .lean();
+
+  res.json({ status: 'ok', data: { items } });
 });
 
 exports.listForProperty = catchAsync(async (req, res) => {
