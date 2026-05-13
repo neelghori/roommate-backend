@@ -61,19 +61,22 @@ async function respondWithPopulatedProperty(docId) {
   return populated;
 }
 
-/** Live on home / explore — staff-approved and published */
+/** Public browse: everything except rejected, on hold, and unpublished approved. */
 function isPublicListed(doc) {
-  if (!doc || !doc.isPublished) return false;
-  if (doc.moderationStatus === 'pending' || doc.moderationStatus === 'under_review' || doc.moderationStatus === 'rejected') {
-    return false;
-  }
-  return !doc.moderationStatus || doc.moderationStatus === 'approved';
+  if (!doc) return false;
+  const ms = doc.moderationStatus;
+  if (ms === 'rejected' || ms === 'on_hold') return false;
+  if (ms === 'approved' && !doc.isPublished) return false;
+  return true;
 }
 
 function publicListingFilter() {
   return {
-    isPublished: true,
-    $or: [{ moderationStatus: 'approved' }, { moderationStatus: { $exists: false } }],
+    $nor: [
+      { moderationStatus: 'rejected' },
+      { moderationStatus: 'on_hold' },
+      { $and: [{ moderationStatus: 'approved' }, { isPublished: false }] },
+    ],
   };
 }
 
@@ -221,6 +224,7 @@ exports.create = catchAsync(async (req, res) => {
     location: b.location,
     address: b.address,
     genderPreference: b.genderPreference,
+    peopleTypes: Array.isArray(b.peopleTypes) ? [...new Set(b.peopleTypes.filter(Boolean))] : [],
     description: b.description,
     websiteUrl: b.websiteUrl,
     socialLinks: b.socialLinks,
@@ -230,7 +234,7 @@ exports.create = catchAsync(async (req, res) => {
     listerSnapshot: b.listerSnapshot,
     listerSnapshots: b.listerSnapshots,
     availableSpots: b.availableSpots,
-    isPublished: false,
+    isPublished: true,
     moderationStatus: 'pending',
     rejectionReason: undefined,
   });
@@ -243,7 +247,7 @@ exports.create = catchAsync(async (req, res) => {
   const populatedCreate = await respondWithPopulatedProperty(doc._id);
   res.status(201).json({
     status: 'ok',
-    message: 'Your listing was submitted and is pending admin approval.',
+    message: 'Your listing is live. Staff may mark it verified after review.',
     data: { property: populatedCreate },
   });
 });

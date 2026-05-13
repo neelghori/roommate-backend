@@ -31,14 +31,55 @@ exports.create = catchAsync(async (req, res) => {
   res.status(201).json({ status: 'ok', data: { booking } });
 });
 
-/** Current user's visit requests (newest first). */
+/** Visit requests you made, plus requests on listings you own (newest first). */
 exports.listMine = catchAsync(async (req, res) => {
-  const items = await Booking.find({ requester: req.user._id })
-    .populate('property', 'title coverImageUrl imageUrls address location listingType')
+  const ownProperties = await Property.find({ owner: req.user._id }).select('_id').lean();
+  const ownIds = ownProperties.map((p) => p._id);
+
+  const filter =
+    ownIds.length > 0
+      ? { $or: [{ requester: req.user._id }, { property: { $in: ownIds } }] }
+      : { requester: req.user._id };
+
+  const items = await Booking.find(filter)
+    .populate('property', 'title coverImageUrl imageUrls address location listingType owner')
+    .populate('requester', 'fullName')
     .sort({ preferredDate: -1, createdAt: -1 })
     .lean();
 
-  res.json({ status: 'ok', data: { items } });
+  const uid = String(req.user._id);
+  const itemsOut = items.map((b) => {
+    const ownerRaw = b.property?.owner;
+    const ownerStr =
+      ownerRaw != null
+        ? typeof ownerRaw === 'object' && ownerRaw._id != null
+          ? String(ownerRaw._id)
+          : String(ownerRaw)
+        : '';
+    const viewerAsOwner = Boolean(ownerStr && ownerStr === uid);
+
+    let requesterStr = '';
+    if (b.requester != null) {
+      requesterStr =
+        typeof b.requester === 'object' && b.requester._id != null
+          ? String(b.requester._id)
+          : String(b.requester);
+    }
+
+    const requesterUserId = requesterStr || null;
+    const propertyOwnerId = ownerStr || null;
+    const chatWithUserId = viewerAsOwner ? requesterUserId : propertyOwnerId;
+
+    return {
+      ...b,
+      viewerAsOwner,
+      requesterUserId,
+      propertyOwnerId,
+      chatWithUserId,
+    };
+  });
+
+  res.json({ status: 'ok', data: { items: itemsOut } });
 });
 
 exports.listForProperty = catchAsync(async (req, res) => {

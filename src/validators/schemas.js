@@ -4,6 +4,7 @@ const {
   PROFESSIONAL_TYPES,
   LISTING_TYPES,
   GENDER_OPTIONS,
+  PEOPLE_TYPES,
 } = require('../constants/roles');
 
 const objectId = Joi.string().hex().length(24).required();
@@ -325,6 +326,12 @@ exports.createProperty = Joi.object({
     country: Joi.string().trim().min(2).max(100),
   }).optional(),
   genderPreference: Joi.string().valid(...GENDER_OPTIONS),
+  peopleTypes: Joi.array()
+    .items(Joi.string().valid(...PEOPLE_TYPES))
+    .max(PEOPLE_TYPES.length)
+    .unique()
+    .min(1)
+    .required(),
   description: Joi.string().max(10000).allow('', null),
   websiteUrl: Joi.string().uri().max(2048).allow('', null),
   socialLinks: Joi.object({
@@ -342,7 +349,7 @@ exports.createProperty = Joi.object({
 });
 
 exports.moderateProperty = Joi.object({
-  action: Joi.string().valid('approve', 'reject', 'under_review').required(),
+  action: Joi.string().valid('approve', 'reject', 'under_review', 'on_hold').required(),
   reason: Joi.when('action', {
     is: 'reject',
     then: Joi.string()
@@ -382,6 +389,12 @@ exports.updateProperty = Joi.object({
     country: Joi.string().trim().min(2).max(100),
   }),
   genderPreference: Joi.string().valid(...GENDER_OPTIONS),
+  peopleTypes: Joi.array()
+    .items(Joi.string().valid(...PEOPLE_TYPES))
+    .max(PEOPLE_TYPES.length)
+    .unique()
+    .min(1)
+    .optional(),
   description: Joi.string().max(10000).allow('', null),
   websiteUrl: Joi.string().uri().max(2048).allow('', null),
   socialLinks: Joi.object({
