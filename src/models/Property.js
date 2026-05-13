@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { LISTING_TYPES, GENDER_OPTIONS, PROFESSIONAL_TYPES } = require('../constants/roles');
+const { LISTING_TYPES, GENDER_OPTIONS, PROFESSIONAL_TYPES, PEOPLE_TYPES } = require('../constants/roles');
 
 const lifestyleSnippetSchema = new mongoose.Schema(
   {
@@ -78,6 +78,20 @@ const propertySchema = new mongoose.Schema(
     location: geoSchema,
     address: addressSchema,
     genderPreference: { type: String, enum: GENDER_OPTIONS, default: 'any' },
+    /** Who the listing is open to (multi-select): bachelor, working, family. */
+    peopleTypes: {
+      type: [String],
+      default: undefined,
+      validate: {
+        validator(arr) {
+          if (!arr || arr.length === 0) return true;
+          if (arr.length > PEOPLE_TYPES.length) return false;
+          const ok = new Set(PEOPLE_TYPES);
+          return arr.every((x) => typeof x === 'string' && ok.has(x)) && new Set(arr).size === arr.length;
+        },
+        message: 'peopleTypes must be unique values from bachelor, working, family',
+      },
+    },
     description: { type: String, maxlength: 10000 },
     websiteUrl: { type: String, trim: true, maxlength: 2048 },
     socialLinks: {
@@ -97,7 +111,7 @@ const propertySchema = new mongoose.Schema(
     /** Staff moderation — new listings start `pending` until approved */
     moderationStatus: {
       type: String,
-      enum: ['pending', 'under_review', 'approved', 'rejected'],
+      enum: ['pending', 'under_review', 'approved', 'rejected', 'on_hold'],
     },
     rejectionReason: { type: String, trim: true, maxlength: 2000 },
     /** Vacancies / beds (shown on listing cards) */

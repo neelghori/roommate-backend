@@ -12,6 +12,7 @@ const TYPE_DISPLAY = {
   room: 'Room',
   roommate_seeker: 'Roommate',
   coworking_space: 'Co-Working Space',
+  house: 'House',
 };
 
 function mapToAdminRow(p) {
@@ -23,11 +24,13 @@ function mapToAdminRow(p) {
   const status =
     p.moderationStatus === 'rejected'
       ? 'REJECTED'
-      : p.moderationStatus === 'under_review'
-        ? 'UNDER_REVIEW'
-        : p.moderationStatus === 'approved' && p.isPublished
-          ? 'APPROVED'
-          : 'PENDING';
+      : p.moderationStatus === 'on_hold'
+        ? 'ON_HOLD'
+        : p.moderationStatus === 'under_review'
+          ? 'UNDER_REVIEW'
+          : p.moderationStatus === 'approved' && p.isPublished
+            ? 'APPROVED'
+            : 'PENDING';
 
   const createdAt =
     p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt ? String(p.createdAt) : '';
@@ -64,6 +67,8 @@ exports.list = catchAsync(async (req, res) => {
     filter.isPublished = true;
   } else if (status === 'rejected') {
     filter.moderationStatus = 'rejected';
+  } else if (status === 'on_hold') {
+    filter.moderationStatus = 'on_hold';
   }
 
   const items = await Property.find(filter)
@@ -109,8 +114,12 @@ exports.moderate = catchAsync(async (req, res) => {
     doc.moderationStatus = 'rejected';
     doc.rejectionReason = reason?.trim() || 'Rejected by moderator.';
   } else if (action === 'under_review') {
-    doc.isPublished = false;
+    doc.isPublished = true;
     doc.moderationStatus = 'under_review';
+    doc.rejectionReason = undefined;
+  } else if (action === 'on_hold') {
+    doc.isPublished = false;
+    doc.moderationStatus = 'on_hold';
     doc.rejectionReason = undefined;
   }
 

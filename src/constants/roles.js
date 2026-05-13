@@ -24,7 +24,10 @@ const PROFESSIONAL_TYPES = [
   'other',
 ];
 
-const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker', 'coworking_space'];
+const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker', 'coworking_space', 'house'];
+
+/** Preferred tenant / occupant categories (multi-select on listings). */
+const PEOPLE_TYPES = ['bachelor', 'working', 'family'];
 
 const GENDER_OPTIONS = ['male', 'female', 'other', 'any'];
 
@@ -34,5 +37,6 @@ module.exports = {
   JWT_AUDIENCE,
   PROFESSIONAL_TYPES,
   LISTING_TYPES,
+  PEOPLE_TYPES,
   GENDER_OPTIONS,
 };
