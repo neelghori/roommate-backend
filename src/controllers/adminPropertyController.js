@@ -20,6 +20,7 @@ function mapToAdminRow(p) {
   const ownerName = owner?.fullName ?? 'Unknown';
   const ownerEmail = owner?.email ?? '';
   const min = p.rentRange?.min ?? 0;
+  const max = p.rentRange?.max ?? min;
   const city = p.address?.city ?? '';
   const status =
     p.moderationStatus === 'rejected'
@@ -44,6 +45,7 @@ function mapToAdminRow(p) {
     listingType: p.listingType,
     city,
     price: min,
+    maxPrice: max > min ? max : undefined,
     status,
     createdAt,
     flagCount: 0,
