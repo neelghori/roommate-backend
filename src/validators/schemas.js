@@ -9,6 +9,40 @@ const {
 
 const objectId = Joi.string().hex().length(24).required();
 
+const rentRangeSchema = Joi.object({
+  min: Joi.number().min(0).required(),
+  max: Joi.number().min(0),
+})
+  .required()
+  .custom((value, helpers) => {
+    const max = value.max != null ? value.max : value.min;
+    if (max < value.min) {
+      return helpers.error('any.invalid', {
+        message: 'Maximum rent must be greater than or equal to minimum rent.',
+      });
+    }
+    return { min: value.min, max };
+  })
+  .messages({
+    'any.required': 'Rent information is required.',
+    'any.invalid': 'Maximum rent must be greater than or equal to minimum rent.',
+  });
+
+const rentRangeUpdateSchema = Joi.object({
+  min: Joi.number().min(0),
+  max: Joi.number().min(0),
+}).custom((value, helpers) => {
+  if (value.min == null && value.max == null) return value;
+  const min = value.min != null ? value.min : value.max;
+  const max = value.max != null ? value.max : min;
+  if (max < min) {
+    return helpers.error('any.invalid', {
+      message: 'Maximum rent must be greater than or equal to minimum rent.',
+    });
+  }
+  return { min, max };
+});
+
 /**
  * Stored image references: absolute https URL (S3, CDN) or root-relative path (e.g. /images/...).
  * Protocol-relative URLs (//...) are rejected as open-redirect vectors.
@@ -301,12 +335,7 @@ exports.createProperty = Joi.object({
     'string.min': 'Title must be at least 3 characters long.',
     'string.empty': 'Title is required.',
   }),
-  rentRange: Joi.object({
-    min: Joi.number().min(0).required(),
-    max: Joi.number().min(0),
-  })
-    .required()
-    .messages({ 'any.required': 'Rent information is required.' }),
+  rentRange: rentRangeSchema,
   currency: Joi.string().uppercase().length(3).optional(),
   listingType: Joi.string()
     .valid(...LISTING_TYPES)
@@ -370,10 +399,7 @@ exports.updateProperty = Joi.object({
   title: Joi.string().trim().min(3).max(200).messages({
     'string.min': 'Title must be at least 3 characters long.',
   }),
-  rentRange: Joi.object({
-    min: Joi.number().min(0),
-    max: Joi.number().min(0),
-  }),
+  rentRange: rentRangeUpdateSchema,
   currency: Joi.string().uppercase().length(3),
   listingType: Joi.string().valid(...LISTING_TYPES),
   coverImageUrl: imageUrlOptional,
