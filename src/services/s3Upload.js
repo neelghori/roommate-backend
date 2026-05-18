@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const env = require('../config/env');
 
 let client;
@@ -51,6 +51,61 @@ function publicUrlForKey(key) {
   return `${origin}/${encodedKey}`;
 }
 
+function publicUrlToObjectKey(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  const bases = [];
+  const custom = (env.AWS_S3_PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  if (custom) bases.push(custom);
+  if (env.AWS_S3_BUCKET && env.AWS_REGION) {
+    bases.push(`https://${env.AWS_S3_BUCKET}.s3.${env.AWS_REGION}.amazonaws.com`);
+    bases.push(`https://s3.${env.AWS_REGION}.amazonaws.com/${env.AWS_S3_BUCKET}`);
+  }
+
+  for (const base of bases) {
+    if (trimmed.startsWith(`${base}/`)) {
+      return decodeURIComponent(trimmed.slice(base.length + 1));
+    }
+  }
+
+  try {
+    const u = new URL(trimmed);
+    const path = u.pathname.replace(/^\//, '');
+    if (path.startsWith('properties/')) return decodeURIComponent(path);
+    if (env.AWS_S3_BUCKET && path.startsWith(`${env.AWS_S3_BUCKET}/`)) {
+      return decodeURIComponent(path.slice(env.AWS_S3_BUCKET.length + 1));
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+async function deleteObjectsByUrls(urls) {
+  if (!Array.isArray(urls) || !urls.length || !isS3Configured()) return;
+  const s3 = getS3Client();
+  if (!s3) return;
+
+  const keys = [
+    ...new Set(
+      urls
+        .map((u) => publicUrlToObjectKey(u))
+        .filter((k) => typeof k === 'string' && k.startsWith('properties/')),
+    ),
+  ];
+
+  await Promise.all(
+    keys.map((Key) =>
+      s3.send(new DeleteObjectCommand({ Bucket: env.AWS_S3_BUCKET, Key })).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[s3Upload] delete failed', Key, err?.message || err);
+      }),
+    ),
+  );
+}
+
 async function putImageObject(key, buffer, contentType) {
   const s3 = getS3Client();
   if (!s3) {
@@ -74,5 +129,7 @@ module.exports = {
   getS3Client,
   randomImageObjectName,
   publicUrlForKey,
+  publicUrlToObjectKey,
   putImageObject,
+  deleteObjectsByUrls,
 };

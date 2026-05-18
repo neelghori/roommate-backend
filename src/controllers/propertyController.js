@@ -14,6 +14,19 @@ function normalizePeopleTypes(listingType, raw) {
   return arr.filter((t) => t !== PEOPLE_TYPE_STUDENT);
 }
 const { notifyStaffNewPropertyListing } = require('../services/propertyNotifications');
+const { deleteObjectsByUrls } = require('../services/s3Upload');
+
+function collectPropertyImageUrls(doc) {
+  const out = [];
+  const cover = typeof doc.coverImageUrl === 'string' ? doc.coverImageUrl.trim() : '';
+  if (cover) out.push(cover);
+  if (Array.isArray(doc.imageUrls)) {
+    for (const u of doc.imageUrls) {
+      if (typeof u === 'string' && u.trim()) out.push(u.trim());
+    }
+  }
+  return [...new Set(out)];
+}
 
 /** `roommate_seeker` listings align with app role `roommate`; other roles use PG/flat/etc. */
 function assertListingTypeAllowedForUser(user, listingType) {
@@ -288,6 +301,19 @@ exports.update = catchAsync(async (req, res) => {
 
   if (body.peopleTypes !== undefined) {
     body.peopleTypes = normalizePeopleTypes(effectiveListingType, body.peopleTypes);
+  }
+
+  if (body.imageUrls !== undefined) {
+    const previousUrls = collectPropertyImageUrls(doc);
+    const nextUrls = Array.isArray(body.imageUrls)
+      ? [...new Set(body.imageUrls.map((u) => String(u).trim()).filter(Boolean))]
+      : [];
+    const removed = previousUrls.filter((u) => !nextUrls.includes(u));
+    if (removed.length) {
+      await deleteObjectsByUrls(removed);
+    }
+    body.imageUrls = nextUrls;
+    body.coverImageUrl = nextUrls.length > 0 ? nextUrls[0] : undefined;
   }
 
   Object.assign(doc, body);
