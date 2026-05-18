@@ -3,7 +3,7 @@ const adminUserController = require('../controllers/adminUserController');
 const { validateBody, validateQuery, validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
 const { adminProtect, requireSuperAdmin } = require('../middlewares/auth');
-const { strictLimiter, authLimiter } = require('../middlewares/rateLimiter');
+const { writeLimiter, authLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
@@ -13,15 +13,13 @@ router.post(
   '/',
   requireSuperAdmin,
   authLimiter,
-  strictLimiter,
   validateBody(schemas.createAdminUser),
   adminUserController.create,
 );
-router.get('/', strictLimiter, validateQuery(schemas.adminUserListQuery), adminUserController.list);
+router.get('/', validateQuery(schemas.adminUserListQuery), adminUserController.list);
 
 router.get(
   '/:id',
-  strictLimiter,
   validateParams(schemas.paramAdminUserId),
   adminUserController.getById,
 );
@@ -29,7 +27,7 @@ router.get(
 router.patch(
   '/:id',
   requireSuperAdmin,
-  strictLimiter,
+  writeLimiter,
   validateParams(schemas.paramAdminUserId),
   validateBody(schemas.adminUserPatch),
   adminUserController.patchUser,
@@ -38,7 +36,7 @@ router.patch(
 router.post(
   '/:id/identity-review',
   requireSuperAdmin,
-  strictLimiter,
+  writeLimiter,
   validateParams(schemas.paramAdminUserId),
   validateBody(schemas.adminUserIdentityReview),
   adminUserController.reviewIdentity,

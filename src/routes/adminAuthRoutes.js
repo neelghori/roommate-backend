@@ -6,7 +6,7 @@ const { adminProtect } = require('../middlewares/auth');
 const {
   authLimiter,
   passwordResetLimiter,
-  strictLimiter,
+  writeLimiter,
   passwordChangeLimiter,
 } = require('../middlewares/rateLimiter');
 
@@ -19,9 +19,9 @@ router.post(
   validateBody(schemas.adminForgotPassword),
   adminAuthController.forgotPassword,
 );
-router.post('/reset-password', strictLimiter, validateBody(schemas.adminResetPassword), adminAuthController.resetPassword);
+router.post('/reset-password', authLimiter, validateBody(schemas.adminResetPassword), adminAuthController.resetPassword);
 router.get('/me', adminProtect, adminAuthController.me);
-router.patch('/me', adminProtect, strictLimiter, validateBody(schemas.updateProfile), adminAuthController.updateProfile);
+router.patch('/me', adminProtect, writeLimiter, validateBody(schemas.updateProfile), adminAuthController.updateProfile);
 router.post(
   '/change-password',
   adminProtect,

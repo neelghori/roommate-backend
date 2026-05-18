@@ -3,14 +3,14 @@ const bookingController = require('../controllers/bookingController');
 const { validateBody, validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
 const { protect } = require('../middlewares/auth');
-const { strictLimiter } = require('../middlewares/rateLimiter');
+const { writeLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
 router.post(
   '/',
-  strictLimiter,
   protect,
+  writeLimiter,
   validateBody(schemas.createBooking),
   bookingController.create,
 );

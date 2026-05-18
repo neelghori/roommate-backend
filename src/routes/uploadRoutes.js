@@ -5,7 +5,7 @@ const { validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
 const { protect, restrictTo } = require('../middlewares/auth');
 const { USER_ROLES } = require('../constants/roles');
-const { strictLimiter } = require('../middlewares/rateLimiter');
+const { uploadLimiter } = require('../middlewares/rateLimiter');
 const ApiError = require('../utils/ApiError');
 
 const router = express.Router();
@@ -48,7 +48,7 @@ const singleIdentityDoc = multer({
 router.post(
   '/properties/:propertyId/gallery',
   protect,
-  strictLimiter,
+  uploadLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyId),
   uploadMemory.array('images', 10),
@@ -58,7 +58,7 @@ router.post(
 router.post(
   '/properties/:propertyId/resident-profile',
   protect,
-  strictLimiter,
+  uploadLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyId),
   singleImage.single('image'),
@@ -68,7 +68,7 @@ router.post(
 router.post(
   '/users/me/avatar',
   protect,
-  strictLimiter,
+  uploadLimiter,
   singleImage.single('image'),
   uploadController.uploadUserAvatar,
 );
@@ -76,7 +76,7 @@ router.post(
 router.post(
   '/users/me/identity-document',
   protect,
-  strictLimiter,
+  uploadLimiter,
   restrictTo(USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE),
   singleIdentityDoc.single('document'),
   uploadController.uploadUserIdentityDocument,

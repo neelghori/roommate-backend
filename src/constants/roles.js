@@ -27,9 +27,13 @@ const PROFESSIONAL_TYPES = [
 const LISTING_TYPES = ['room', 'flat', 'pg', 'roommate_seeker', 'coworking_space', 'house'];
 
 /** Preferred tenant / occupant categories (multi-select on listings). */
-const PEOPLE_TYPES = ['bachelor', 'working', 'family'];
+const PEOPLE_TYPES = ['bachelor', 'working', 'family', 'student'];
+/** PG/hostel only — validated in property controller + create schema */
+const PEOPLE_TYPE_STUDENT = 'student';
 
 const GENDER_OPTIONS = ['male', 'female', 'other', 'any'];
+
+const FURNISHING_TYPES = ['unfurnished', 'semi_furnished', 'fully_furnished'];
 
 module.exports = {
   USER_ROLES,
@@ -38,5 +42,7 @@ module.exports = {
   PROFESSIONAL_TYPES,
   LISTING_TYPES,
   PEOPLE_TYPES,
+  PEOPLE_TYPE_STUDENT,
   GENDER_OPTIONS,
+  FURNISHING_TYPES,
 };

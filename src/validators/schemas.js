@@ -5,6 +5,7 @@ const {
   LISTING_TYPES,
   GENDER_OPTIONS,
   PEOPLE_TYPES,
+  FURNISHING_TYPES,
 } = require('../constants/roles');
 
 const objectId = Joi.string().hex().length(24).required();
@@ -228,6 +229,7 @@ exports.adminUserPatch = Joi.object({
   isActive: Joi.boolean(),
   emailVerified: Joi.boolean(),
   mobileVerifiedByAdmin: Joi.boolean(),
+  role: Joi.string().valid(USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE),
 })
   .min(1)
   .unknown(false)
@@ -340,6 +342,13 @@ exports.createProperty = Joi.object({
   listingType: Joi.string()
     .valid(...LISTING_TYPES)
     .required(),
+  furnishing: Joi.string()
+    .valid(...FURNISHING_TYPES)
+    .required()
+    .messages({
+      'any.required': 'Furnishing type is required.',
+      'any.only': 'Furnishing must be unfurnished, semi furnished, or fully furnished.',
+    }),
   coverImageUrl: imageUrlOptional,
   imageUrls: Joi.array().items(imageUrlArrayItem).max(30),
   offerText: Joi.string().trim().max(500).allow('', null),
@@ -372,6 +381,15 @@ exports.createProperty = Joi.object({
   verificationBadge: Joi.string().valid('none', 'id_verified', 'property_verified', 'premium'),
   amenityIds: Joi.array().items(Joi.string().hex().length(24)).max(50),
   availableSpots: Joi.number().integer().min(1).max(50),
+  minimumStayMonths: Joi.when('listingType', {
+    is: 'pg',
+    then: Joi.number().integer().min(1).max(36).required().messages({
+      'any.required': 'Minimum stay (months) is required for PG listings.',
+      'number.min': 'Minimum stay must be at least 1 month.',
+      'number.max': 'Minimum stay cannot exceed 36 months.',
+    }),
+    otherwise: Joi.valid(null).optional(),
+  }),
   listerSnapshot: listerResidentBody.optional(),
   listerSnapshots: Joi.array().items(listerResidentBody).max(20),
   isPublished: Joi.boolean(),
@@ -402,6 +420,7 @@ exports.updateProperty = Joi.object({
   rentRange: rentRangeUpdateSchema,
   currency: Joi.string().uppercase().length(3),
   listingType: Joi.string().valid(...LISTING_TYPES),
+  furnishing: Joi.string().valid(...FURNISHING_TYPES),
   coverImageUrl: imageUrlOptional,
   imageUrls: Joi.array().items(imageUrlArrayItem).max(30),
   offerText: Joi.string().trim().max(500).allow('', null),
@@ -432,6 +451,7 @@ exports.updateProperty = Joi.object({
   verificationBadge: Joi.string().valid('none', 'id_verified', 'property_verified', 'premium'),
   amenityIds: Joi.array().items(Joi.string().hex().length(24)).max(50),
   availableSpots: Joi.number().integer().min(1).max(50),
+  minimumStayMonths: Joi.number().integer().min(1).max(36).allow(null),
   listerSnapshot: listerResidentBody,
   listerSnapshots: Joi.array().items(listerResidentBody).max(20),
   isPublished: Joi.boolean(),

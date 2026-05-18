@@ -3,6 +3,8 @@ const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { USER_ROLES } = require('../constants/roles');
 
+const APP_USER_ROLES = [USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE];
+
 function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -131,10 +133,23 @@ exports.reviewIdentity = catchAsync(async (req, res) => {
 });
 
 exports.patchUser = catchAsync(async (req, res) => {
-  const { isActive, emailVerified, mobileVerifiedByAdmin } = req.body;
+  const { isActive, emailVerified, mobileVerifiedByAdmin, role } = req.body;
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
   assertCanAccessUserDoc(req.user, user);
+
+  if (role !== undefined) {
+    if (!APP_USER_ROLES.includes(user.role)) {
+      throw new ApiError(400, 'Role can only be changed for tenant, owner, or roommate accounts.');
+    }
+    if (!APP_USER_ROLES.includes(role)) {
+      throw new ApiError(400, 'Role must be tenant, owner, or roommate.');
+    }
+    if (user._id.equals(req.user._id)) {
+      throw new ApiError(400, 'You cannot change your own role.');
+    }
+    user.role = role;
+  }
 
   if (typeof isActive === 'boolean') {
     if (!isActive && user._id.equals(req.user._id)) {
