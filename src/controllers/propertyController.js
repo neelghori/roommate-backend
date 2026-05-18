@@ -3,7 +3,16 @@ const Property = require('../models/Property');
 const SavedProperty = require('../models/SavedProperty');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
-const { USER_ROLES } = require('../constants/roles');
+const { USER_ROLES, PEOPLE_TYPE_STUDENT } = require('../constants/roles');
+
+function normalizePeopleTypes(listingType, raw) {
+  const arr = Array.isArray(raw) ? [...new Set(raw.filter(Boolean))] : [];
+  if (listingType === 'pg') return arr;
+  if (arr.includes(PEOPLE_TYPE_STUDENT)) {
+    throw new ApiError(400, 'Student is only available for PG/Hostel listings.');
+  }
+  return arr.filter((t) => t !== PEOPLE_TYPE_STUDENT);
+}
 const { notifyStaffNewPropertyListing } = require('../services/propertyNotifications');
 
 /** `roommate_seeker` listings align with app role `roommate`; other roles use PG/flat/etc. */
@@ -218,13 +227,14 @@ exports.create = catchAsync(async (req, res) => {
     rentRange: { min, max },
     currency: b.currency || 'INR',
     listingType: b.listingType,
+    furnishing: b.furnishing,
     coverImageUrl: b.coverImageUrl,
     imageUrls: b.imageUrls,
     offerText: b.offerText,
     location: b.location,
     address: b.address,
     genderPreference: b.genderPreference,
-    peopleTypes: Array.isArray(b.peopleTypes) ? [...new Set(b.peopleTypes.filter(Boolean))] : [],
+    peopleTypes: normalizePeopleTypes(b.listingType, b.peopleTypes),
     description: b.description,
     websiteUrl: b.websiteUrl,
     socialLinks: b.socialLinks,
@@ -234,6 +244,7 @@ exports.create = catchAsync(async (req, res) => {
     listerSnapshot: b.listerSnapshot,
     listerSnapshots: b.listerSnapshots,
     availableSpots: b.availableSpots,
+    minimumStayMonths: b.listingType === 'pg' ? b.minimumStayMonths : undefined,
     isPublished: true,
     moderationStatus: 'pending',
     rejectionReason: undefined,
@@ -267,7 +278,25 @@ exports.update = catchAsync(async (req, res) => {
   const effectiveListingType = body.listingType !== undefined ? body.listingType : doc.listingType;
   assertListingTypeAllowedForUser(req.user, effectiveListingType);
 
+  if (effectiveListingType === 'pg') {
+    if (body.minimumStayMonths === undefined && doc.minimumStayMonths == null) {
+      throw new ApiError(400, 'Minimum stay (months) is required for PG listings.');
+    }
+  } else {
+    body.minimumStayMonths = undefined;
+  }
+
+  if (body.peopleTypes !== undefined) {
+    body.peopleTypes = normalizePeopleTypes(effectiveListingType, body.peopleTypes);
+  }
+
   Object.assign(doc, body);
+  if (effectiveListingType !== 'pg') {
+    doc.minimumStayMonths = undefined;
+    if (Array.isArray(doc.peopleTypes)) {
+      doc.peopleTypes = doc.peopleTypes.filter((t) => t !== PEOPLE_TYPE_STUDENT);
+    }
+  }
   if (Array.isArray(req.body.listerSnapshots)) {
     doc.set('listerSnapshot', undefined);
   }

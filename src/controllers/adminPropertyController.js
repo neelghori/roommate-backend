@@ -7,12 +7,18 @@ const {
 } = require('../services/propertyNotifications');
 
 const TYPE_DISPLAY = {
-  pg: 'PG',
+  pg: 'PG/Hostel',
   flat: 'Flat',
   room: 'Room',
   roommate_seeker: 'Roommate',
   coworking_space: 'Co-Working Space',
   house: 'House',
+};
+
+const FURNISHING_DISPLAY = {
+  unfurnished: 'Unfurnished',
+  semi_furnished: 'Semi Furnished',
+  fully_furnished: 'Fully Furnished',
 };
 
 function mapToAdminRow(p) {
@@ -43,6 +49,7 @@ function mapToAdminRow(p) {
     ownerEmail,
     type: TYPE_DISPLAY[p.listingType] || p.listingType,
     listingType: p.listingType,
+    furnishing: FURNISHING_DISPLAY[p.furnishing] || p.furnishing || '',
     city,
     price: min,
     maxPrice: max > min ? max : undefined,

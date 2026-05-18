@@ -3,7 +3,7 @@ const authController = require('../controllers/authController');
 const { validateBody } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
 const { protect } = require('../middlewares/auth');
-const { authLimiter, strictLimiter, passwordChangeLimiter, passwordResetLimiter } = require('../middlewares/rateLimiter');
+const { authLimiter, writeLimiter, passwordChangeLimiter, passwordResetLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
@@ -17,9 +17,9 @@ router.post(
 );
 router.post('/login', authLimiter, validateBody(schemas.login), authController.login);
 router.post('/forgot-password', passwordResetLimiter, validateBody(schemas.userForgotPassword), authController.forgotPassword);
-router.post('/reset-password', strictLimiter, validateBody(schemas.userResetPassword), authController.resetPassword);
+router.post('/reset-password', authLimiter, validateBody(schemas.userResetPassword), authController.resetPassword);
 router.get('/me', protect, authController.me);
-router.patch('/me', protect, strictLimiter, validateBody(schemas.updateProfile), authController.updateProfile);
+router.patch('/me', protect, writeLimiter, validateBody(schemas.updateProfile), authController.updateProfile);
 router.post(
   '/change-password',
   protect,

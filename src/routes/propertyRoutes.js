@@ -4,7 +4,7 @@ const { validateBody, validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
 const { protect, restrictTo, optionalAuth } = require('../middlewares/auth');
 const { USER_ROLES } = require('../constants/roles');
-const { strictLimiter } = require('../middlewares/rateLimiter');
+const { writeLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
 
@@ -16,7 +16,7 @@ router.get('/:id', optionalAuth, validateParams(schemas.paramId), propertyContro
 router.post(
   '/',
   protect,
-  strictLimiter,
+  writeLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateBody(schemas.createProperty),
   propertyController.create,
@@ -25,7 +25,7 @@ router.post(
 router.post(
   '/:id/lister-residents',
   protect,
-  strictLimiter,
+  writeLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramId),
   validateBody(schemas.listerResidentPostBody),
@@ -35,7 +35,7 @@ router.post(
 router.patch(
   '/:id/lister-residents/:residentId',
   protect,
-  strictLimiter,
+  writeLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyResident),
   validateBody(schemas.patchListerResidentBody),
@@ -45,7 +45,7 @@ router.patch(
 router.delete(
   '/:id/lister-residents/:residentId',
   protect,
-  strictLimiter,
+  writeLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyResident),
   propertyController.deleteListerResident,
@@ -54,7 +54,7 @@ router.delete(
 router.patch(
   '/:id',
   protect,
-  strictLimiter,
+  writeLimiter,
   validateParams(schemas.paramId),
   validateBody(schemas.updateProperty),
   propertyController.update,

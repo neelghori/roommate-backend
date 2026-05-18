@@ -1,5 +1,11 @@
 const mongoose = require('mongoose');
-const { LISTING_TYPES, GENDER_OPTIONS, PROFESSIONAL_TYPES, PEOPLE_TYPES } = require('../constants/roles');
+const {
+  LISTING_TYPES,
+  GENDER_OPTIONS,
+  PROFESSIONAL_TYPES,
+  PEOPLE_TYPES,
+  FURNISHING_TYPES,
+} = require('../constants/roles');
 
 const lifestyleSnippetSchema = new mongoose.Schema(
   {
@@ -72,6 +78,7 @@ const propertySchema = new mongoose.Schema(
     currency: { type: String, default: 'INR', uppercase: true, maxlength: 3 },
     isVerified: { type: Boolean, default: false },
     listingType: { type: String, enum: LISTING_TYPES, required: true },
+    furnishing: { type: String, enum: FURNISHING_TYPES },
     coverImageUrl: { type: String, trim: true, maxlength: 2048 },
     imageUrls: [{ type: String, maxlength: 2048 }],
     offerText: { type: String, trim: true, maxlength: 500 },
@@ -89,7 +96,7 @@ const propertySchema = new mongoose.Schema(
           const ok = new Set(PEOPLE_TYPES);
           return arr.every((x) => typeof x === 'string' && ok.has(x)) && new Set(arr).size === arr.length;
         },
-        message: 'peopleTypes must be unique values from bachelor, working, family',
+        message: 'peopleTypes must be unique values from bachelor, working, family, student',
       },
     },
     description: { type: String, maxlength: 10000 },
@@ -116,6 +123,8 @@ const propertySchema = new mongoose.Schema(
     rejectionReason: { type: String, trim: true, maxlength: 2000 },
     /** Vacancies / beds (shown on listing cards) */
     availableSpots: { type: Number, min: 1, max: 50 },
+    /** Minimum stay in months (PG listings only) */
+    minimumStayMonths: { type: Number, min: 1, max: 36 },
   },
   { timestamps: true },
 );
