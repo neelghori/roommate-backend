@@ -4,7 +4,8 @@ const { validateBody, validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
 const { protect, restrictTo, optionalAuth } = require('../middlewares/auth');
 const { USER_ROLES } = require('../constants/roles');
-const { writeLimiter } = require('../middlewares/rateLimiter');
+const { writeLimiter, uploadLimiter } = require('../middlewares/rateLimiter');
+const { optionalPropertyGalleryUpload } = require('../middlewares/propertyMultipart');
 
 const router = express.Router();
 
@@ -16,8 +17,10 @@ router.get('/:id', optionalAuth, validateParams(schemas.paramId), propertyContro
 router.post(
   '/',
   protect,
+  uploadLimiter,
   writeLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
+  optionalPropertyGalleryUpload,
   validateBody(schemas.createProperty),
   propertyController.create,
 );
@@ -54,8 +57,10 @@ router.delete(
 router.patch(
   '/:id',
   protect,
+  uploadLimiter,
   writeLimiter,
   validateParams(schemas.paramId),
+  optionalPropertyGalleryUpload,
   validateBody(schemas.updateProperty),
   propertyController.update,
 );

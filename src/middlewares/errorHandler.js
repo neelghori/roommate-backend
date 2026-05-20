@@ -62,6 +62,12 @@ function errorHandler(err, req, res, _next) {
   res.status(statusCode).json({
     status: 'error',
     message,
+    ...(statusCode === 413
+      ? {
+          hint:
+            'Request body exceeds reverse-proxy limit. Set nginx client_max_body_size to at least 64m (see deploy/nginx-api-uploads.conf).',
+        }
+      : {}),
   });
 }
 
