@@ -77,6 +77,29 @@ const imageUrlArrayItem = Joi.string()
     'any.invalid': '{{#label}} must be a valid http(s) URL or a root-relative path starting with /',
   });
 
+const YOUTUBE_HOSTS = new Set(['youtube.com', 'youtu.be', 'm.youtube.com', 'music.youtube.com']);
+
+const youtubeUrlOptional = Joi.string()
+  .trim()
+  .max(2048)
+  .allow('', null)
+  .custom((value, helpers) => {
+    if (value === '' || value == null) return value;
+    let url;
+    try {
+      url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+    } catch {
+      return helpers.error('any.invalid');
+    }
+    const host = url.hostname.replace(/^www\./i, '').toLowerCase();
+    const ok = YOUTUBE_HOSTS.has(host) || host.endsWith('.youtube.com');
+    if (!ok) return helpers.error('any.invalid');
+    return value;
+  })
+  .messages({
+    'any.invalid': 'YouTube link must be a valid youtube.com or youtu.be URL',
+  });
+
 /** Diet/smoking object — `unknown(false)` so `{ tags: [...] }` is not misread as this shape. */
 const lifestyle = Joi.object({
   diet: Joi.string().valid('vegetarian', 'non_vegetarian', 'eggetarian', 'vegan'),
@@ -372,6 +395,7 @@ exports.createProperty = Joi.object({
     .required(),
   description: Joi.string().max(10000).allow('', null),
   websiteUrl: Joi.string().uri().max(2048).allow('', null),
+  youtubeUrl: youtubeUrlOptional,
   socialLinks: Joi.object({
     instagram: Joi.string().trim().max(500).allow('', null),
     facebook: Joi.string().trim().max(500).allow('', null),
@@ -442,6 +466,7 @@ exports.updateProperty = Joi.object({
     .optional(),
   description: Joi.string().max(10000).allow('', null),
   websiteUrl: Joi.string().uri().max(2048).allow('', null),
+  youtubeUrl: youtubeUrlOptional,
   socialLinks: Joi.object({
     instagram: Joi.string().trim().max(500).allow('', null),
     facebook: Joi.string().trim().max(500).allow('', null),

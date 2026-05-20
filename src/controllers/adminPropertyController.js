@@ -5,6 +5,7 @@ const {
   notifyOwnerListingApproved,
   notifyOwnerListingRejected,
 } = require('../services/propertyNotifications');
+const { hardDeletePropertyById } = require('../services/hardDelete');
 
 const TYPE_DISPLAY = {
   pg: 'PG/Hostel',
@@ -150,4 +151,11 @@ exports.moderate = catchAsync(async (req, res) => {
 
   const lean = await Property.findById(doc._id).populate('owner', 'fullName email').lean();
   res.json({ status: 'ok', data: { listing: mapToAdminRow(lean) } });
+});
+
+/** DELETE — permanently remove listing and related data from the database. */
+exports.remove = catchAsync(async (req, res) => {
+  const deleted = await hardDeletePropertyById(req.params.id);
+  if (!deleted) throw new ApiError(404, 'Listing not found');
+  res.status(204).send();
 });
