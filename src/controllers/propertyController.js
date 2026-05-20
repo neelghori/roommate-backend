@@ -17,6 +17,7 @@ const { notifyStaffNewPropertyListing } = require('../services/propertyNotificat
 const { deleteObjectsByUrls } = require('../services/s3Upload');
 const { hardDeletePropertyById } = require('../services/hardDelete');
 const { uploadGalleryBuffers, mergeImageUrls } = require('../services/propertyImageUpload');
+const { assertCanManageProperty } = require('../utils/propertyAccess');
 
 function collectPropertyImageUrls(doc) {
   const out = [];
@@ -234,6 +235,13 @@ exports.getOne = catchAsync(async (req, res) => {
 exports.create = catchAsync(async (req, res) => {
   const b = req.body;
   const uploadFiles = req.files || [];
+  if (process.env.NODE_ENV === 'development') {
+    const ct = req.headers['content-type'] || '';
+    // eslint-disable-next-line no-console
+    console.log(
+      `[property.create] multipart=${ct.includes('multipart')} files=${uploadFiles.length} sizes=${uploadFiles.map((f) => f.size).join(',')}`,
+    );
+  }
   assertListingTypeAllowedForUser(req.user, b.listingType);
   const min = b.rentRange?.min;
   const max = b.rentRange?.max != null ? b.rentRange.max : min;
@@ -297,7 +305,7 @@ exports.create = catchAsync(async (req, res) => {
 exports.update = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
-  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+  assertCanManageProperty(req.user, doc);
 
   const body = { ...req.body };
   delete body.isPublished;
@@ -376,7 +384,7 @@ exports.update = catchAsync(async (req, res) => {
 exports.addListerResident = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
-  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+  assertCanManageProperty(req.user, doc);
 
   if (migrateLegacyListerSnapshot(doc)) doc.markModified('listerSnapshots');
 
@@ -407,7 +415,7 @@ exports.addListerResident = catchAsync(async (req, res) => {
 exports.updateListerResident = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
-  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+  assertCanManageProperty(req.user, doc);
 
   if (migrateLegacyListerSnapshot(doc)) doc.markModified('listerSnapshots');
 
@@ -443,7 +451,7 @@ exports.updateListerResident = catchAsync(async (req, res) => {
 exports.deleteListerResident = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
-  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only edit your own listings');
+  assertCanManageProperty(req.user, doc);
 
   if (migrateLegacyListerSnapshot(doc)) doc.markModified('listerSnapshots');
 
@@ -468,7 +476,7 @@ exports.deleteListerResident = catchAsync(async (req, res) => {
 exports.remove = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
-  if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only delete your own listings');
+  assertCanManageProperty(req.user, doc);
 
   await hardDeletePropertyById(doc._id);
   res.status(204).send();
