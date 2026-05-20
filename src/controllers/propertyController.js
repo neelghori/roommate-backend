@@ -16,6 +16,7 @@ function normalizePeopleTypes(listingType, raw) {
 const { notifyStaffNewPropertyListing } = require('../services/propertyNotifications');
 const { deleteObjectsByUrls } = require('../services/s3Upload');
 const { hardDeletePropertyById } = require('../services/hardDelete');
+const { uploadGalleryBuffers, mergeImageUrls } = require('../services/propertyImageUpload');
 
 function collectPropertyImageUrls(doc) {
   const out = [];
@@ -232,9 +233,14 @@ exports.getOne = catchAsync(async (req, res) => {
 
 exports.create = catchAsync(async (req, res) => {
   const b = req.body;
+  const uploadFiles = req.files || [];
   assertListingTypeAllowedForUser(req.user, b.listingType);
   const min = b.rentRange?.min;
   const max = b.rentRange?.max != null ? b.rentRange.max : min;
+  let imageUrls = Array.isArray(b.imageUrls)
+    ? [...new Set(b.imageUrls.map((u) => String(u).trim()).filter(Boolean))]
+    : [];
+
   const doc = await Property.create({
     owner: req.user._id,
     title: b.title,
@@ -242,8 +248,8 @@ exports.create = catchAsync(async (req, res) => {
     currency: b.currency || 'INR',
     listingType: b.listingType,
     furnishing: b.furnishing,
-    coverImageUrl: b.coverImageUrl,
-    imageUrls: b.imageUrls,
+    coverImageUrl: imageUrls.length > 0 ? imageUrls[0] : b.coverImageUrl,
+    imageUrls,
     offerText: b.offerText,
     location: b.location,
     address: b.address,
@@ -265,6 +271,14 @@ exports.create = catchAsync(async (req, res) => {
     moderationStatus: 'pending',
     rejectionReason: undefined,
   });
+
+  if (uploadFiles.length) {
+    const uploaded = await uploadGalleryBuffers(doc._id.toString(), uploadFiles);
+    imageUrls = mergeImageUrls(imageUrls, uploaded);
+    doc.imageUrls = imageUrls;
+    doc.coverImageUrl = imageUrls.length > 0 ? imageUrls[0] : undefined;
+    await doc.save();
+  }
 
   notifyStaffNewPropertyListing(doc).catch((err) => {
     // eslint-disable-next-line no-console
@@ -313,11 +327,21 @@ exports.update = catchAsync(async (req, res) => {
         : null;
   }
 
-  if (body.imageUrls !== undefined) {
+  const uploadFiles = req.files || [];
+  const imageUrlsTouched =
+    body.imageUrls !== undefined || uploadFiles.length > 0;
+
+  if (imageUrlsTouched) {
     const previousUrls = collectPropertyImageUrls(doc);
-    const nextUrls = Array.isArray(body.imageUrls)
+    let nextUrls = Array.isArray(body.imageUrls)
       ? [...new Set(body.imageUrls.map((u) => String(u).trim()).filter(Boolean))]
-      : [];
+      : previousUrls;
+
+    if (uploadFiles.length) {
+      const uploaded = await uploadGalleryBuffers(doc._id.toString(), uploadFiles);
+      nextUrls = mergeImageUrls(nextUrls, uploaded);
+    }
+
     const removed = previousUrls.filter((u) => !nextUrls.includes(u));
     if (removed.length) {
       await deleteObjectsByUrls(removed);
@@ -482,8 +506,10 @@ exports.mySaved = catchAsync(async (req, res) => {
         { path: 'amenityIds', select: 'name slug' },
       ],
     })
-    .sort({ updatedAt: -1 });
-  res.json({ status: 'ok', data: { items: saved } });
+    .sort({ updatedAt: -1 })
+    .lean();
+  const items = saved.filter((row) => row.property);
+  res.json({ status: 'ok', data: { items } });
 });
 
 exports.myListings = catchAsync(async (req, res) => {

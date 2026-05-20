@@ -19,37 +19,6 @@ async function assertPropertyOwner(propertyId, userId) {
   if (!doc.owner.equals(userId)) throw new ApiError(403, 'You can only upload images for your own listings');
 }
 
-/** POST multipart `images` (max 10) → `properties/{propertyId}/...` */
-exports.uploadPropertyGallery = catchAsync(async (req, res) => {
-  requireS3();
-  const { propertyId } = req.params;
-  await assertPropertyOwner(propertyId, req.user._id);
-
-  const files = req.files || [];
-  if (!files.length) throw new ApiError(400, 'No image files received (use field name "images")');
-
-  if (process.env.NODE_ENV === 'development') {
-    // eslint-disable-next-line no-console
-    console.log(
-      `[upload] gallery property=${propertyId} files=${files.length} sizes=${files.map((f) => f.size).join(',')}`,
-    );
-  }
-
-  const urls = [];
-  for (const f of files) {
-    const key = `properties/${propertyId}/${randomImageObjectName(f.mimetype)}`;
-    try {
-      const url = await putImageObject(key, f.buffer, f.mimetype);
-      urls.push(url);
-    } catch (e) {
-      if (e.code === 'S3_NOT_CONFIGURED') throw new ApiError(503, 'S3 is not configured');
-      throw e;
-    }
-  }
-
-  res.status(201).json({ status: 'ok', data: { urls } });
-});
-
 /** POST multipart `image` (single) → `profiles/residents/{propertyId}/...` */
 exports.uploadResidentProfileImage = catchAsync(async (req, res) => {
   requireS3();

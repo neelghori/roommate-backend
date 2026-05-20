@@ -6,7 +6,7 @@ const schemas = require('../validators/schemas');
 const { protect, restrictTo } = require('../middlewares/auth');
 const { USER_ROLES } = require('../constants/roles');
 const { uploadLimiter } = require('../middlewares/rateLimiter');
-const { MAX_PROPERTY_IMAGE_BYTES, MAX_PROPERTY_GALLERY_FILES } = require('../constants/uploads');
+const { MAX_PROPERTY_IMAGE_BYTES } = require('../constants/uploads');
 const { runMulter } = require('../middlewares/multerHandler');
 
 const router = express.Router();
@@ -40,12 +40,6 @@ const identityDocFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-const uploadMemory = multer({
-  storage,
-  limits: { fileSize: MAX_PROPERTY_IMAGE_BYTES, files: MAX_PROPERTY_GALLERY_FILES },
-  fileFilter: imageFilter,
-});
-
 const singleImage = multer({
   storage,
   limits: { fileSize: MAX_PROPERTY_IMAGE_BYTES, files: 1 },
@@ -57,16 +51,6 @@ const singleIdentityDoc = multer({
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
   fileFilter: identityDocFilter,
 });
-
-router.post(
-  '/properties/:propertyId/gallery',
-  protect,
-  uploadLimiter,
-  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
-  validateParams(schemas.paramPropertyId),
-  runMulter(uploadMemory.array('images', MAX_PROPERTY_GALLERY_FILES)),
-  uploadController.uploadPropertyGallery,
-);
 
 router.post(
   '/properties/:propertyId/resident-profile',
