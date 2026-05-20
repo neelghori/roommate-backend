@@ -8,12 +8,19 @@ const IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|heic|heif)$/i;
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
 
 const imageFilter = (req, file, cb) => {
-  const name = file.originalname || '';
-  const mime = file.mimetype || '';
+  const name = (file.originalname || '').trim();
+  const mime = (file.mimetype || '').trim().toLowerCase();
   const okMime =
     IMAGE_MIME.test(mime) || (mime === 'application/octet-stream' && IMAGE_EXT.test(name));
   if (okMime || IMAGE_EXT.test(name)) {
     return cb(null, true);
+  }
+  // iOS/Android camera: empty type or generic name "image" / "image.jpg"
+  if (!mime || mime === 'application/octet-stream') {
+    const lower = name.toLowerCase();
+    if (!lower || lower === 'image' || /^image\.(jpe?g|png|heic|heif)?$/i.test(lower)) {
+      return cb(null, true);
+    }
   }
   const err = new Error('Only JPEG, PNG, WebP, GIF, or HEIC images are allowed');
   err.statusCode = 400;
