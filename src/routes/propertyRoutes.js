@@ -54,11 +54,17 @@ router.delete(
   propertyController.deleteListerResident,
 );
 
+/**
+ * PATCH /:id — partial update (only sent fields change; optional multipart `data` + `images`).
+ * PUT is not used: our handler merges into the existing document, it does not replace the full resource.
+ * POST /:id is not defined (create is POST / only).
+ */
 router.patch(
   '/:id',
   protect,
   uploadLimiter,
   writeLimiter,
+  restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramId),
   optionalPropertyGalleryUpload,
   validateBody(schemas.updateProperty),

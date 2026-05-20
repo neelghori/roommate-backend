@@ -293,6 +293,7 @@ exports.create = catchAsync(async (req, res) => {
   });
 });
 
+/** PATCH semantics: merge partial `req.body` (and optional new images) into existing listing. */
 exports.update = catchAsync(async (req, res) => {
   const doc = await Property.findById(req.params.id);
   if (!doc) throw new ApiError(404, 'Listing not found');
