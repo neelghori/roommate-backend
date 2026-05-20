@@ -42,4 +42,12 @@ router.post(
   adminUserController.reviewIdentity,
 );
 
+router.delete(
+  '/:id',
+  requireSuperAdmin,
+  writeLimiter,
+  validateParams(schemas.paramAdminUserId),
+  adminUserController.remove,
+);
+
 module.exports = router;

@@ -101,6 +101,8 @@ const propertySchema = new mongoose.Schema(
     },
     description: { type: String, maxlength: 10000 },
     websiteUrl: { type: String, trim: true, maxlength: 2048 },
+    /** Optional property video (YouTube watch or youtu.be link). */
+    youtubeUrl: { type: String, trim: true, maxlength: 2048 },
     socialLinks: {
       instagram: { type: String, trim: true, maxlength: 500 },
       facebook: { type: String, trim: true, maxlength: 500 },

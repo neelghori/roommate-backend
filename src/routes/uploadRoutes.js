@@ -6,36 +6,49 @@ const schemas = require('../validators/schemas');
 const { protect, restrictTo } = require('../middlewares/auth');
 const { USER_ROLES } = require('../constants/roles');
 const { uploadLimiter } = require('../middlewares/rateLimiter');
-const ApiError = require('../utils/ApiError');
+const { MAX_PROPERTY_IMAGE_BYTES, MAX_PROPERTY_GALLERY_FILES } = require('../constants/uploads');
+const { runMulter } = require('../middlewares/multerHandler');
 
 const router = express.Router();
 
 const storage = multer.memoryStorage();
+const IMAGE_MIME = /^image\/(jpeg|jpg|png|webp|gif|heic|heif)$/i;
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|heic|heif)$/i;
+
 const imageFilter = (req, file, cb) => {
-  if (!/^image\/(jpeg|jpg|png|webp|gif)$/i.test(file.mimetype)) {
-    return cb(new ApiError(400, 'Only JPEG, PNG, WebP, or GIF images are allowed'));
+  const name = file.originalname || '';
+  const mime = file.mimetype || '';
+  const okMime =
+    IMAGE_MIME.test(mime) ||
+    (mime === 'application/octet-stream' && IMAGE_EXT.test(name));
+  if (okMime || IMAGE_EXT.test(name)) {
+    return cb(null, true);
   }
-  cb(null, true);
+  const err = new Error('Only JPEG, PNG, WebP, GIF, or HEIC images are allowed');
+  err.statusCode = 400;
+  return cb(err);
 };
 
 const identityDocFilter = (req, file, cb) => {
   const ok =
     /^image\/(jpeg|jpg|png|webp)$/i.test(file.mimetype) || file.mimetype === 'application/pdf';
   if (!ok) {
-    return cb(new ApiError(400, 'Only JPEG, PNG, WebP, or PDF files are allowed for identity verification'));
+    const err = new Error('Only JPEG, PNG, WebP, or PDF files are allowed for identity verification');
+    err.statusCode = 400;
+    return cb(err);
   }
   cb(null, true);
 };
 
 const uploadMemory = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 10 },
+  limits: { fileSize: MAX_PROPERTY_IMAGE_BYTES, files: MAX_PROPERTY_GALLERY_FILES },
   fileFilter: imageFilter,
 });
 
 const singleImage = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: MAX_PROPERTY_IMAGE_BYTES, files: 1 },
   fileFilter: imageFilter,
 });
 
@@ -51,7 +64,7 @@ router.post(
   uploadLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyId),
-  uploadMemory.array('images', 10),
+  runMulter(uploadMemory.array('images', MAX_PROPERTY_GALLERY_FILES)),
   uploadController.uploadPropertyGallery,
 );
 
@@ -61,7 +74,7 @@ router.post(
   uploadLimiter,
   restrictTo(USER_ROLES.OWNER, USER_ROLES.TENANT, USER_ROLES.ROOMMATE),
   validateParams(schemas.paramPropertyId),
-  singleImage.single('image'),
+  runMulter(singleImage.single('image')),
   uploadController.uploadResidentProfileImage,
 );
 
@@ -69,7 +82,7 @@ router.post(
   '/users/me/avatar',
   protect,
   uploadLimiter,
-  singleImage.single('image'),
+  runMulter(singleImage.single('image')),
   uploadController.uploadUserAvatar,
 );
 
@@ -78,7 +91,7 @@ router.post(
   protect,
   uploadLimiter,
   restrictTo(USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE),
-  singleIdentityDoc.single('document'),
+  runMulter(singleIdentityDoc.single('document')),
   uploadController.uploadUserIdentityDocument,
 );
 

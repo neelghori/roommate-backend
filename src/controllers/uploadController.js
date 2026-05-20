@@ -28,6 +28,13 @@ exports.uploadPropertyGallery = catchAsync(async (req, res) => {
   const files = req.files || [];
   if (!files.length) throw new ApiError(400, 'No image files received (use field name "images")');
 
+  if (process.env.NODE_ENV === 'development') {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[upload] gallery property=${propertyId} files=${files.length} sizes=${files.map((f) => f.size).join(',')}`,
+    );
+  }
+
   const urls = [];
   for (const f of files) {
     const key = `properties/${propertyId}/${randomImageObjectName(f.mimetype)}`;

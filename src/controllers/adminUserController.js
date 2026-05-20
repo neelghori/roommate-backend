@@ -2,6 +2,7 @@ const User = require('../models/User');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 const { USER_ROLES } = require('../constants/roles');
+const { hardDeleteUserById } = require('../services/hardDelete');
 
 const APP_USER_ROLES = [USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE];
 
@@ -172,4 +173,13 @@ exports.patchUser = catchAsync(async (req, res) => {
 
   await user.save({ validateBeforeSave: false });
   res.json({ status: 'ok', data: { user: user.toSafeObject() } });
+});
+
+/** DELETE — permanently remove user, their listings, and related data from the database. */
+exports.remove = catchAsync(async (req, res) => {
+  const target = await User.findById(req.params.id);
+  if (!target) throw new ApiError(404, 'User not found');
+  assertCanAccessUserDoc(req.user, target);
+  await hardDeleteUserById(req.params.id, { requesterId: req.user._id });
+  res.status(204).send();
 });

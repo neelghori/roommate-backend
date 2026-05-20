@@ -15,6 +15,7 @@ function normalizePeopleTypes(listingType, raw) {
 }
 const { notifyStaffNewPropertyListing } = require('../services/propertyNotifications');
 const { deleteObjectsByUrls } = require('../services/s3Upload');
+const { hardDeletePropertyById } = require('../services/hardDelete');
 
 function collectPropertyImageUrls(doc) {
   const out = [];
@@ -250,6 +251,8 @@ exports.create = catchAsync(async (req, res) => {
     peopleTypes: normalizePeopleTypes(b.listingType, b.peopleTypes),
     description: b.description,
     websiteUrl: b.websiteUrl,
+    youtubeUrl:
+      typeof b.youtubeUrl === 'string' && b.youtubeUrl.trim() ? b.youtubeUrl.trim() : undefined,
     socialLinks: b.socialLinks,
     contactPhone: b.contactPhone,
     verificationBadge: b.verificationBadge || 'none',
@@ -301,6 +304,13 @@ exports.update = catchAsync(async (req, res) => {
 
   if (body.peopleTypes !== undefined) {
     body.peopleTypes = normalizePeopleTypes(effectiveListingType, body.peopleTypes);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'youtubeUrl')) {
+    body.youtubeUrl =
+      typeof body.youtubeUrl === 'string' && body.youtubeUrl.trim()
+        ? body.youtubeUrl.trim()
+        : null;
   }
 
   if (body.imageUrls !== undefined) {
@@ -435,8 +445,7 @@ exports.remove = catchAsync(async (req, res) => {
   if (!doc) throw new ApiError(404, 'Listing not found');
   if (!doc.owner.equals(req.user._id)) throw new ApiError(403, 'You can only delete your own listings');
 
-  await Promise.all([doc.deleteOne(), SavedProperty.deleteMany({ property: doc._id })]);
-
+  await hardDeletePropertyById(doc._id);
   res.status(204).send();
 });
 

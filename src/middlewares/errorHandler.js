@@ -1,6 +1,9 @@
 const mongoose = require('mongoose');
 const ApiError = require('../utils/ApiError');
 const env = require('../config/env');
+const { MAX_PROPERTY_IMAGE_BYTES } = require('../constants/uploads');
+
+const MAX_IMAGE_MB = Math.round(MAX_PROPERTY_IMAGE_BYTES / (1024 * 1024));
 
 const GENERIC_500 = 'Something went wrong. Please try again later.';
 const GENERIC_400_BODY = 'Invalid request body.';
@@ -35,10 +38,13 @@ function errorHandler(err, req, res, _next) {
     statusCode = 400;
     message =
       err.code === 'LIMIT_FILE_SIZE'
-        ? 'Each file must be 5 MB or smaller.'
+        ? `Each file must be ${MAX_IMAGE_MB} MB or smaller.`
         : err.code === 'LIMIT_FILE_COUNT'
           ? 'Too many files in this upload.'
           : err.message || 'Upload failed.';
+  } else if (typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500 && err.message) {
+    statusCode = err.statusCode;
+    message = err.message;
   }
 
   if (statusCode === 500) {

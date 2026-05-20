@@ -2,7 +2,7 @@ const express = require('express');
 const adminPropertyController = require('../controllers/adminPropertyController');
 const { validateBody, validateParams } = require('../middlewares/validate');
 const schemas = require('../validators/schemas');
-const { adminProtect } = require('../middlewares/auth');
+const { adminProtect, requireSuperAdmin } = require('../middlewares/auth');
 const { writeLimiter } = require('../middlewares/rateLimiter');
 
 const router = express.Router();
@@ -17,6 +17,14 @@ router.patch(
   validateParams(schemas.paramId),
   validateBody(schemas.moderateProperty),
   adminPropertyController.moderate,
+);
+
+router.delete(
+  '/:id',
+  requireSuperAdmin,
+  writeLimiter,
+  validateParams(schemas.paramId),
+  adminPropertyController.remove,
 );
 
 module.exports = router;
