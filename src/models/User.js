@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema(
     mobile: {
       type: String,
       required: function mobileRequired() {
+        if (this.googleId) return false;
         return this.role !== USER_ROLES.SUPERADMIN && this.role !== USER_ROLES.SUB_ADMIN;
       },
       trim: true,
@@ -30,6 +31,13 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 254,
     },
+    /** Google account subject (`sub` from ID token). */
+    googleId: { type: String, trim: true, unique: true, sparse: true },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
+    },
     role: {
       type: String,
       enum: [
@@ -41,7 +49,14 @@ const userSchema = new mongoose.Schema(
       ],
       required: true,
     },
-    password: { type: String, required: true, minlength: 8, select: false },
+    password: {
+      type: String,
+      required: function passwordRequired() {
+        return !this.googleId;
+      },
+      minlength: 8,
+      select: false,
+    },
     professionalType: {
       type: String,
       enum: PROFESSIONAL_TYPES,
@@ -111,13 +126,14 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ mobile: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ googleId: 1 }, { unique: true, sparse: true });
 
 userSchema.pre('save', async function hashPassword(next) {
   if (this.isModified('password')) {
     this.passwordResetTokenHash = undefined;
     this.passwordResetExpires = undefined;
   }
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   const env = require('../config/env');
   this.password = await bcrypt.hash(this.password, env.BCRYPT_SALT_ROUNDS);
   next();

@@ -6,6 +6,7 @@ const {
   notifyOwnerListingRejected,
 } = require('../services/propertyNotifications');
 const { hardDeletePropertyById } = require('../services/hardDelete');
+const { ADMIN_PROPERTY_LIST_SORT } = require('../constants/propertySort');
 
 const TYPE_DISPLAY = {
   pg: 'PG/Hostel',
@@ -60,6 +61,9 @@ function mapToAdminRow(p) {
     moderationStatus: p.moderationStatus,
     isPublished: p.isPublished,
     rejectionReason: p.rejectionReason ?? '',
+    isFeatured: Boolean(p.isFeatured),
+    featuredAt:
+      p.featuredAt instanceof Date ? p.featuredAt.toISOString() : p.featuredAt ? String(p.featuredAt) : '',
   };
 }
 
@@ -82,7 +86,7 @@ exports.list = catchAsync(async (req, res) => {
   }
 
   const items = await Property.find(filter)
-    .sort({ createdAt: -1 })
+    .sort(ADMIN_PROPERTY_LIST_SORT)
     .limit(200)
     .populate('owner', 'fullName email')
     .lean();
@@ -148,6 +152,26 @@ exports.moderate = catchAsync(async (req, res) => {
       console.error('[adminPropertyController.moderate] notifyOwnerListingRejected:', err?.message || err);
     });
   }
+
+  const lean = await Property.findById(doc._id).populate('owner', 'fullName email').lean();
+  res.json({ status: 'ok', data: { listing: mapToAdminRow(lean) } });
+});
+
+/** Pin / unpin any listing at the top of public browse (when visible on the site). */
+exports.setFeatured = catchAsync(async (req, res) => {
+  const { featured } = req.body;
+  const doc = await Property.findById(req.params.id);
+  if (!doc) throw new ApiError(404, 'Listing not found');
+
+  if (featured) {
+    doc.isFeatured = true;
+    doc.featuredAt = new Date();
+  } else {
+    doc.isFeatured = false;
+    doc.featuredAt = undefined;
+  }
+
+  await doc.save();
 
   const lean = await Property.findById(doc._id).populate('owner', 'fullName email').lean();
   res.json({ status: 'ok', data: { listing: mapToAdminRow(lean) } });

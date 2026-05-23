@@ -19,6 +19,14 @@ router.patch(
   adminPropertyController.moderate,
 );
 
+router.patch(
+  '/:id/featured',
+  writeLimiter,
+  validateParams(schemas.paramId),
+  validateBody(schemas.setPropertyFeatured),
+  adminPropertyController.setFeatured,
+);
+
 router.delete(
   '/:id',
   requireSuperAdmin,

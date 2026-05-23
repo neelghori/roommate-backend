@@ -11,6 +11,7 @@ const {
   sendUserPasswordResetEmail,
   isEmailConfigured,
 } = require('../services/emailService');
+const { verifyGoogleIdToken, randomLocalPassword } = require('../services/googleAuthService');
 
 const APP_SIGNUP_ROLES = new Set([USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE]);
 
@@ -162,6 +163,77 @@ exports.resendVerificationEmail = catchAsync(async (req, res) => {
   res.json({ status: 'ok', message: generic });
 });
 
+exports.googleAuth = catchAsync(async (req, res) => {
+  const { idToken, role } = req.body;
+  const profile = await verifyGoogleIdToken(idToken);
+
+  if (
+    profile.email === (env.SUPERADMIN_EMAIL || '').trim().toLowerCase() ||
+    profile.email.endsWith('@roommate.local')
+  ) {
+    throw new ApiError(403, 'This account must sign in through the admin panel.');
+  }
+
+  let user = await User.findOne({ googleId: profile.googleId });
+  let isNew = false;
+
+  if (!user) {
+    user = await User.findOne({ email: profile.email });
+    if (user) {
+      if (user.role === USER_ROLES.SUPERADMIN || user.role === USER_ROLES.SUB_ADMIN) {
+        throw new ApiError(403, 'This account must sign in through POST /api/v1/admin/auth/login');
+      }
+      if (!user.googleId) {
+        user.googleId = profile.googleId;
+        if (!user.profileImageUrl && profile.profileImageUrl) {
+          user.profileImageUrl = profile.profileImageUrl;
+        }
+        user.emailVerified = true;
+      }
+    } else {
+      if (!role || !APP_SIGNUP_ROLES.has(role)) {
+        throw new ApiError(
+          400,
+          'Choose tenant, owner, or roommate to finish signing up with Google.',
+        );
+      }
+      user = await User.create({
+        fullName: profile.fullName,
+        email: profile.email,
+        googleId: profile.googleId,
+        authProvider: 'google',
+        role,
+        password: randomLocalPassword(),
+        professionalType: 'other',
+        profileImageUrl: profile.profileImageUrl,
+        emailVerified: true,
+        mobileVerifiedByAdmin: false,
+      });
+      isNew = true;
+    }
+  } else if (user.role === USER_ROLES.SUPERADMIN || user.role === USER_ROLES.SUB_ADMIN) {
+    throw new ApiError(403, 'This account must sign in through POST /api/v1/admin/auth/login');
+  }
+
+  if (!user.isActive) {
+    throw new ApiError(403, 'This account is deactivated.');
+  }
+
+  if (profile.profileImageUrl) {
+    user.profileImageUrl = profile.profileImageUrl;
+  }
+  user.emailVerified = true;
+  user.lastLoginAt = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  const token = signToken({ sub: user.id });
+
+  res.json({
+    status: 'ok',
+    data: { user: user.toSafeObject(), token, isNew },
+  });
+});
+
 exports.login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email }).select('+password');
@@ -276,6 +348,9 @@ exports.resetPassword = catchAsync(async (req, res) => {
   user.password = newPassword;
   user.passwordResetTokenHash = undefined;
   user.passwordResetExpires = undefined;
+  if (user.authProvider === 'google') {
+    user.authProvider = 'local';
+  }
   await user.save();
 
   res.json({

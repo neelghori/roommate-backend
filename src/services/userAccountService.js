@@ -108,6 +108,12 @@ async function changePasswordById(userId, currentPassword, newPassword) {
   const user = await User.findById(userId).select('+password');
   if (!user) throw new ApiError(404, 'User not found.');
   if (!user.isActive) throw new ApiError(403, 'This account is deactivated.');
+  if (user.authProvider === 'google') {
+    throw new ApiError(
+      400,
+      'This account uses Google sign-in. Use Forgot password to set a password, or continue with Google.',
+    );
+  }
 
   const currentOk = await user.comparePassword(currentPassword);
   if (!currentOk) {
