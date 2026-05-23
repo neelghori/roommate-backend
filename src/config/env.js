@@ -25,6 +25,8 @@ const schema = Joi.object({
   AWS_SECRET_ACCESS_KEY: Joi.string().trim().allow('').default(''),
   /** Optional CDN or path-style origin, e.g. https://d111111abcdef8.cloudfront.net (no trailing slash) */
   AWS_S3_PUBLIC_BASE_URL: Joi.string().trim().allow('').max(500).default(''),
+  /** Google OAuth client ID (Web) — same value as website NEXT_PUBLIC_GOOGLE_CLIENT_ID */
+  GOOGLE_CLIENT_ID: Joi.string().trim().allow('').default(''),
 }).unknown(true);
 
 const { value, error } = schema.validate(process.env, { abortEarly: false });

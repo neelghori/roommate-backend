@@ -127,6 +127,9 @@ const propertySchema = new mongoose.Schema(
     availableSpots: { type: Number, min: 1, max: 50 },
     /** Minimum stay in months (PG listings only) */
     minimumStayMonths: { type: Number, min: 1, max: 36 },
+    /** Admin-pinned listing appears first on public browse when that listing is visible. */
+    isFeatured: { type: Boolean, default: false, index: true },
+    featuredAt: { type: Date },
   },
   { timestamps: true },
 );
@@ -134,5 +137,6 @@ const propertySchema = new mongoose.Schema(
 propertySchema.index({ location: '2dsphere' });
 propertySchema.index({ listingType: 1, 'rentRange.min': 1 });
 propertySchema.index({ owner: 1, createdAt: -1 });
+propertySchema.index({ isFeatured: -1, featuredAt: -1, createdAt: -1 });
 
 module.exports = mongoose.model('Property', propertySchema);

@@ -18,6 +18,7 @@ const { deleteObjectsByUrls } = require('../services/s3Upload');
 const { hardDeletePropertyById } = require('../services/hardDelete');
 const { uploadGalleryBuffers, mergeImageUrls } = require('../services/propertyImageUpload');
 const { assertCanManageProperty } = require('../utils/propertyAccess');
+const { PUBLIC_PROPERTY_LIST_SORT } = require('../constants/propertySort');
 
 function collectPropertyImageUrls(doc) {
   const out = [];
@@ -151,7 +152,7 @@ exports.list = catchAsync(async (req, res) => {
   if (req.query.minRent != null) filter['rentRange.min'] = { $gte: Number(req.query.minRent) };
 
   let query = Property.find(filter)
-    .sort({ createdAt: -1 })
+    .sort(PUBLIC_PROPERTY_LIST_SORT)
     .skip(skip)
     .limit(limit)
     .populate('owner', 'fullName profileImageUrl role')
@@ -169,7 +170,7 @@ exports.list = catchAsync(async (req, res) => {
     countFilter = geoFilter;
 
     query = Property.find(geoFilter)
-      .sort({ createdAt: -1 })
+      .sort(PUBLIC_PROPERTY_LIST_SORT)
       .skip(skip)
       .limit(limit)
       .populate('owner', 'fullName profileImageUrl role')

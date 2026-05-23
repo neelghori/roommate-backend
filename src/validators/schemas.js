@@ -163,6 +163,14 @@ exports.login = Joi.object({
   email: loginEmail,
 });
 
+exports.googleAuth = Joi.object({
+  idToken: Joi.string().trim().min(20).required().messages({
+    'any.required': 'Google sign-in token is required.',
+    'string.min': 'Google sign-in token is invalid.',
+  }),
+  role: Joi.string().valid(USER_ROLES.TENANT, USER_ROLES.OWNER, USER_ROLES.ROOMMATE),
+}).unknown(false);
+
 exports.adminLogin = Joi.object({
   password: loginPassword,
   email: loginEmail,
@@ -436,6 +444,10 @@ exports.moderateProperty = Joi.object({
     otherwise: Joi.string().trim().max(2000).allow('', null),
   }),
 }).unknown(false);
+
+exports.setPropertyFeatured = Joi.object({
+  featured: Joi.boolean().required(),
+});
 
 exports.updateProperty = Joi.object({
   title: Joi.string().trim().min(3).max(200).messages({

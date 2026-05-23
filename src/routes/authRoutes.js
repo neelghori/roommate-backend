@@ -16,6 +16,7 @@ router.post(
   authController.resendVerificationEmail,
 );
 router.post('/login', authLimiter, validateBody(schemas.login), authController.login);
+router.post('/google', authLimiter, validateBody(schemas.googleAuth), authController.googleAuth);
 router.post('/forgot-password', passwordResetLimiter, validateBody(schemas.userForgotPassword), authController.forgotPassword);
 router.post('/reset-password', authLimiter, validateBody(schemas.userResetPassword), authController.resetPassword);
 router.get('/me', protect, authController.me);

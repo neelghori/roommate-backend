@@ -24,8 +24,8 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: '64kb' }));
-app.use(express.urlencoded({ extended: true, limit: '64kb' }));
+app.use(express.json({ limit: '128mb' }));
+app.use(express.urlencoded({ extended: true, limit: '128mb' }));
 
 app.use(mongoSanitize({ replaceWith: '_' }));
 app.use(hpp());
