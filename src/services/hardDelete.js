@@ -3,6 +3,7 @@ const Property = require('../models/Property');
 const SavedProperty = require('../models/SavedProperty');
 const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
+const PushSubscription = require('../models/PushSubscription');
 const ChatMessage = require('../models/ChatMessage');
 const TenantRoommateProfile = require('../models/TenantRoommateProfile');
 const SupportTicket = require('../models/SupportTicket');
@@ -119,6 +120,7 @@ async function hardDeleteUserById(userId, options = {}) {
     Booking.deleteMany({ requester: uid }),
     ChatMessage.deleteMany({ $or: [{ sender: uid }, { receiver: uid }] }),
     Notification.deleteMany({ user: uid }),
+    PushSubscription.deleteMany({ user: uid }),
     TenantRoommateProfile.deleteMany({ user: uid }),
     SupportTicket.deleteMany({ user: uid }),
     User.updateMany(

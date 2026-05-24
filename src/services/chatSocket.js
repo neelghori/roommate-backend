@@ -49,6 +49,15 @@ function broadcastToUser(userId, obj) {
   }
 }
 
+function isUserConnectedViaWebSocket(userId) {
+  const set = socketsByUserId.get(String(userId));
+  if (!set || set.size === 0) return false;
+  for (const ws of set) {
+    if (ws.readyState === WebSocket.OPEN) return true;
+  }
+  return false;
+}
+
 /** Plain shape for clients (matches REST list items). */
 function notificationToWire(doc) {
   const o = doc && typeof doc.toObject === 'function' ? doc.toObject() : doc;
@@ -162,4 +171,4 @@ function initChatSocket(httpServer) {
   });
 }
 
-module.exports = { initChatSocket, broadcastNewMessage, broadcastNotificationNew };
+module.exports = { initChatSocket, broadcastNewMessage, broadcastNotificationNew, isUserConnectedViaWebSocket };

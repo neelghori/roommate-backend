@@ -1,6 +1,7 @@
 const Notification = require('../models/Notification');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
+const { deliverNotification } = require('../services/notificationDelivery');
 
 exports.listMine = catchAsync(async (req, res) => {
   const items = await Notification.find({ user: req.user._id }).sort({ createdAt: -1 }).limit(100);
@@ -23,6 +24,9 @@ exports.create = catchAsync(async (req, res) => {
     description: b.description,
     type: b.type,
     payload: b.payload,
+  });
+  deliverNotification(doc.user, doc).catch(() => {
+    /* non-fatal */
   });
   res.status(201).json({ status: 'ok', data: { notification: doc } });
 });

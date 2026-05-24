@@ -16,6 +16,7 @@ router.use('/faqs', require('./faqRoutes'));
 router.use('/support', require('./supportRoutes'));
 router.use('/chat', require('./chatRoutes'));
 router.use('/notifications', require('./notificationRoutes'));
+router.use('/push', require('./pushRoutes'));
 router.use('/tenant-roommate-profiles', require('./tenantRoommateProfileRoutes'));
 
 router.get('/health', (req, res) => {

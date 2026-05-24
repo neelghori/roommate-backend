@@ -1,7 +1,7 @@
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { USER_ROLES } = require('../constants/roles');
-const { broadcastNotificationNew } = require('./chatSocket');
+const { deliverNotification } = require('./notificationDelivery');
 
 /**
  * In-app notifications for listing lifecycle (best-effort; errors are logged).
@@ -55,7 +55,10 @@ async function notifyStaffNewPropertyListing(property) {
     ),
   );
   for (const doc of docs) {
-    broadcastNotificationNew(doc.user, doc);
+    deliverNotification(doc.user, doc).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[propertyNotifications] deliver failed:', err?.message || err);
+    });
   }
 }
 
@@ -79,7 +82,10 @@ async function notifyOwnerListingApproved(property) {
       title,
     },
   });
-  broadcastNotificationNew(ownerId, doc);
+  deliverNotification(ownerId, doc).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('[propertyNotifications] deliver failed:', err?.message || err);
+  });
 }
 
 async function notifyOwnerListingRejected(property) {
@@ -104,7 +110,10 @@ async function notifyOwnerListingRejected(property) {
       rejectionReason: reason,
     },
   });
-  broadcastNotificationNew(ownerId, doc);
+  deliverNotification(ownerId, doc).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('[propertyNotifications] deliver failed:', err?.message || err);
+  });
 }
 
 module.exports = {
