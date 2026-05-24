@@ -16,6 +16,8 @@ const schema = Joi.object({
   /** Public website origin for signup email verification links, e.g. https://app.roommat.com */
   APP_PUBLIC_FRONTEND_URL: Joi.string().trim().allow('').default(''),
   ADMIN_PASSWORD_RESET_BASE_URL: Joi.string().trim().allow('').default(''),
+  /** Admin panel origin for web push deep links (e.g. https://admin.roommat.in) */
+  ADMIN_PUBLIC_FRONTEND_URL: Joi.string().trim().allow('').default(''),
   PASSWORD_RESET_EXPIRES_MINUTES: Joi.number().integer().min(5).max(1440).default(60),
   EMAIL_VERIFICATION_EXPIRES_HOURS: Joi.number().integer().min(1).max(168).default(48),
   /** S3 image uploads — bucket + region required when using /api/v1/upload/* */
@@ -27,6 +29,10 @@ const schema = Joi.object({
   AWS_S3_PUBLIC_BASE_URL: Joi.string().trim().allow('').max(500).default(''),
   /** Google OAuth client ID (Web) — same value as website NEXT_PUBLIC_GOOGLE_CLIENT_ID */
   GOOGLE_CLIENT_ID: Joi.string().trim().allow('').default(''),
+  /** Web Push (VAPID) — generate with: npx web-push generate-vapid-keys */
+  VAPID_PUBLIC_KEY: Joi.string().trim().allow('').default(''),
+  VAPID_PRIVATE_KEY: Joi.string().trim().allow('').default(''),
+  VAPID_SUBJECT: Joi.string().trim().allow('').default(''),
 }).unknown(true);
 
 const { value, error } = schema.validate(process.env, { abortEarly: false });

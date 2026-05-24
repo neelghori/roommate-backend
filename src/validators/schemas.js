@@ -558,6 +558,19 @@ exports.createNotification = Joi.object({
   payload: Joi.object().unknown(true),
 });
 
+exports.pushSubscribe = Joi.object({
+  endpoint: Joi.string().trim().uri().max(2048).required(),
+  keys: Joi.object({
+    p256dh: Joi.string().trim().min(1).max(512).required(),
+    auth: Joi.string().trim().min(1).max(512).required(),
+  }).required(),
+  expirationTime: Joi.number().allow(null),
+}).unknown(false);
+
+exports.pushUnsubscribe = Joi.object({
+  endpoint: Joi.string().trim().uri().max(2048).required(),
+}).unknown(false);
+
 exports.paramId = Joi.object({
   id: Joi.string().hex().length(24).required(),
 });

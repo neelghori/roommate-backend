@@ -2,6 +2,7 @@ const ChatMessage = require('../models/ChatMessage');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { broadcastNewMessage } = require('../services/chatSocket');
+const { deliverNotification } = require('../services/notificationDelivery');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 
@@ -21,12 +22,15 @@ exports.send = catchAsync(async (req, res) => {
 
   const senderName = (req.user.fullName && String(req.user.fullName).trim()) || 'Someone';
   try {
-    await Notification.create({
+    const notif = await Notification.create({
       user: receiver._id,
       title: `New message from ${senderName}`,
       description: String(message).slice(0, 200),
       type: 'message',
       payload: { senderId: me, messageId: String(doc._id) },
+    });
+    deliverNotification(receiver._id, notif).catch(() => {
+      /* non-fatal */
     });
   } catch {
     /* non-fatal */
