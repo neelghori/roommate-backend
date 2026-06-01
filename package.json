@@ -1,7 +1,7 @@
 {
   "name": "roommate-backend",
   "version": "1.0.0",
-  "description": "RoomMate API — rooms, PG, flats, roommate listings",
+  "description": "Roommat API — rooms, PG, flats, roommate listings",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
