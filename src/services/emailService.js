@@ -60,8 +60,8 @@ async function sendAdminPasswordResetEmail(opts) {
   const logoUrl = resolveSignupEmailLogoUrl();
   const safeResetHref = resetUrl ? escapeHtmlAttr(resetUrl) : '';
   const logoBlock = logoUrl
-    ? `<img src="${escapeHtmlAttr(logoUrl)}" alt="RoomMate" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0;outline:none;text-decoration:none;" />`
-    : `<p style="margin:0;font-size:30px;font-weight:800;color:#0d9488;letter-spacing:-0.04em;line-height:1;">RoomMate</p>`;
+    ? `<img src="${escapeHtmlAttr(logoUrl)}" alt="Roommat" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;font-size:30px;font-weight:800;color:#0d9488;letter-spacing:-0.04em;line-height:1;">Roommat</p>`;
 
   const actionBlock = safeResetHref
     ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;">
@@ -99,7 +99,7 @@ async function sendAdminPasswordResetEmail(opts) {
             <td style="padding:32px 28px 24px;">
               <p style="margin:0 0 12px;font-size:16px;color:#111827;line-height:1.5;">Hello,</p>
               <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">
-                We received a request to reset the password for your <strong>RoomMate admin</strong> account.
+                We received a request to reset the password for your <strong>Roommat admin</strong> account.
               </p>
               ${actionBlock}
               <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;line-height:1.5;">
@@ -109,7 +109,7 @@ async function sendAdminPasswordResetEmail(opts) {
           </tr>
           <tr>
             <td style="padding:16px 28px 28px;border-top:1px solid #f3f4f6;text-align:center;">
-              <p style="margin:0;font-size:11px;color:#9ca3af;">© RoomMate · Account security</p>
+              <p style="margin:0;font-size:11px;color:#9ca3af;">© Roommat · Account security</p>
             </td>
           </tr>
         </table>
@@ -122,7 +122,7 @@ async function sendAdminPasswordResetEmail(opts) {
   const { error } = await resend.emails.send({
     from: env.EMAIL_FROM,
     to: [to],
-    subject: 'Reset your RoomMate admin password',
+    subject: 'Reset your Roommat admin password',
     html,
   });
 
@@ -154,8 +154,8 @@ async function sendUserPasswordResetEmail(opts) {
   const logoUrl = resolveSignupEmailLogoUrl();
   const safeResetHref = resetUrl ? escapeHtmlAttr(resetUrl) : '';
   const logoBlock = logoUrl
-    ? `<img src="${escapeHtmlAttr(logoUrl)}" alt="RoomMate" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0;outline:none;text-decoration:none;" />`
-    : `<p style="margin:0;font-size:30px;font-weight:800;color:#0d9488;letter-spacing:-0.04em;line-height:1;">RoomMate</p>`;
+    ? `<img src="${escapeHtmlAttr(logoUrl)}" alt="Roommat" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;font-size:30px;font-weight:800;color:#0d9488;letter-spacing:-0.04em;line-height:1;">Roommat</p>`;
 
   const actionBlock = safeResetHref
     ? `<table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;">
@@ -193,7 +193,7 @@ async function sendUserPasswordResetEmail(opts) {
             <td style="padding:32px 28px 24px;">
               <p style="margin:0 0 12px;font-size:16px;color:#111827;line-height:1.5;">Hello,</p>
               <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">
-                We received a request to reset the password for your <strong>RoomMate</strong> account.
+                We received a request to reset the password for your <strong>Roommat</strong> account.
               </p>
               ${actionBlock}
               <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;line-height:1.5;">
@@ -203,7 +203,7 @@ async function sendUserPasswordResetEmail(opts) {
           </tr>
           <tr>
             <td style="padding:16px 28px 28px;border-top:1px solid #f3f4f6;text-align:center;">
-              <p style="margin:0;font-size:11px;color:#9ca3af;">© RoomMate · Account security</p>
+              <p style="margin:0;font-size:11px;color:#9ca3af;">© Roommat · Account security</p>
             </td>
           </tr>
         </table>
@@ -216,7 +216,7 @@ async function sendUserPasswordResetEmail(opts) {
   const { error } = await resend.emails.send({
     from: env.EMAIL_FROM,
     to: [to],
-    subject: 'Reset your RoomMate password',
+    subject: 'Reset your Roommat password',
     html,
   });
 
@@ -254,8 +254,8 @@ async function sendSignupVerificationEmail(opts) {
   const logoUrl = resolveSignupEmailLogoUrl();
   const safeVerifyHref = escapeHtmlAttr(verifyUrl);
   const logoBlock = logoUrl
-    ? `<img src="${escapeHtmlAttr(logoUrl)}" alt="RoomMate" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0;outline:none;text-decoration:none;" />`
-    : `<p style="margin:0;font-size:30px;font-weight:800;color:#0d9488;letter-spacing:-0.04em;line-height:1;">RoomMate</p>`;
+    ? `<img src="${escapeHtmlAttr(logoUrl)}" alt="Roommat" width="200" style="display:block;margin:0 auto;max-width:200px;height:auto;border:0;outline:none;text-decoration:none;" />`
+    : `<p style="margin:0;font-size:30px;font-weight:800;color:#0d9488;letter-spacing:-0.04em;line-height:1;">Roommat</p>`;
 
   const html = `
 <!DOCTYPE html>
@@ -278,7 +278,7 @@ async function sendSignupVerificationEmail(opts) {
             <td style="padding:32px 28px 24px;">
               <p style="margin:0 0 12px;font-size:16px;color:#111827;line-height:1.5;">Hi ${name},</p>
               <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.6;">
-                Thanks for joining RoomMate. Please confirm your email address so we know this account belongs to you.
+                Thanks for joining Roommat. Please confirm your email address so we know this account belongs to you.
               </p>
               <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 auto 8px;">
                 <tr>
@@ -297,7 +297,7 @@ async function sendSignupVerificationEmail(opts) {
           </tr>
           <tr>
             <td style="padding:16px 28px 28px;border-top:1px solid #f3f4f6;text-align:center;">
-              <p style="margin:0;font-size:11px;color:#9ca3af;">© RoomMate · Account security</p>
+              <p style="margin:0;font-size:11px;color:#9ca3af;">© Roommat · Account security</p>
             </td>
           </tr>
         </table>
@@ -310,7 +310,7 @@ async function sendSignupVerificationEmail(opts) {
   const { error } = await resend.emails.send({
     from: env.EMAIL_FROM,
     to: [to],
-    subject: 'Confirm your RoomMate email',
+    subject: 'Confirm your Roommat email',
     html,
   });
 
